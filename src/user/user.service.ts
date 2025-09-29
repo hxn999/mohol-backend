@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { User } from './schemas/user.schema';
+import { User, UserDocument } from './schemas/user.schema';
 import { DeleteResult, Model, UpdateWriteOpResult } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { CreateUserDto } from './dto/createUserDto';
-
+import * as bcrypt from 'bcrypt'
+import { Types } from 'mongoose';
 
 
 @Injectable()
@@ -12,14 +13,18 @@ export class UserService {
   private readonly logger = new Logger(UserService.name);
 
 
-  async create(user: CreateUserDto): Promise<User> {
+  async create(user: CreateUserDto): Promise<UserDocument> {
     try {
       // checks for duplicate accounts
-      const foundUser = await this.userModel.findOne({email:user.email}).exec();
-      if(!foundUser)
-      {
+      const foundUser = await this.userModel.findOne({ email: user.email }).exec();
+      if (foundUser) {
         throw new ConflictException("User account already exists !")
       }
+
+      // hashing user's password for security
+      const saltOrRounds = 10;
+      const hashedPassword = await bcrypt.hash(user.password, saltOrRounds);
+      user.password = hashedPassword
 
       const createdUser = new this.userModel(user);
       return await createdUser.save();
@@ -29,10 +34,20 @@ export class UserService {
     }
   }
 
-  async findOne(query: string): Promise<User> {
+  async findOne(query: string): Promise<UserDocument> {
     try {
       // matches with email or mongo id
-      const user = await this.userModel.findOne({$or:[{email:query},{_id:query}]}).exec();
+      
+
+      let user;
+      if (Types.ObjectId.isValid(query)) {
+        user = await this.userModel.findOne({ _id:  new Types.ObjectId(query) }).exec();
+      }
+      else{
+        user = await this.userModel.findOne({ email:  query }).exec();
+      }
+
+      
       if (!user) {
         throw new NotFoundException(`User with id ${query} not found`);
       }
@@ -42,10 +57,10 @@ export class UserService {
     }
   }
 
-   async findMany(query: string): Promise<User[]> {
+  async findMany(query: string): Promise<UserDocument[]> {
     try {
       // matches with email or mongo id
-      const users = await this.userModel.find({$or:[{email:query},{_id:query}]}).exec();
+      const users = await this.userModel.find({ $or: [{ email: query }, { _id: query }] }).exec();
       if (!users) {
         throw new NotFoundException(`User with id ${query} not found`);
       }
@@ -56,11 +71,11 @@ export class UserService {
   }
 
 
- 
+
   async deleteOne(query: string): Promise<DeleteResult> {
     try {
       // matches with email or mongo id
-      const deletedUserResult = await this.userModel.deleteOne({$or:[{email:query},{_id:query}]}).exec();
+      const deletedUserResult = await this.userModel.deleteOne({ $or: [{ email: query }, { _id: query }] }).exec();
       if (!deletedUserResult) {
         throw new NotFoundException(`User with id ${query} not found`);
       }
@@ -73,18 +88,18 @@ export class UserService {
   async deleteMany(query: string): Promise<DeleteResult> {
     try {
       // matches with email or mongo id
-      const deletedUserResult = await this.userModel.deleteMany({$or:[{email:query},{_id:query}]}).exec();
-     
+      const deletedUserResult = await this.userModel.deleteMany({ $or: [{ email: query }, { _id: query }] }).exec();
+
       return deletedUserResult;
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
-async updateOne(query: string,updatedUser): Promise<UpdateWriteOpResult> {
+  async updateOne(query: string, updatedUser): Promise<UpdateWriteOpResult> {
     try {
       // matches with email or mongo id
-      const updatedUserResult = await this.userModel.updateOne({$or:[{email:query},{_id:query}]},{$set:updatedUser}).exec();
-      
+      const updatedUserResult = await this.userModel.updateOne({ $or: [{ email: query }, { _id: query }] }, { $set: updatedUser }).exec();
+
       return updatedUserResult;
     } catch (error) {
       throw new BadRequestException(error.message);

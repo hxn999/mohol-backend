@@ -6,15 +6,5 @@ export class UserController {
 
     constructor(private userService:UserService){}
 
-    @Get()
-    hello()
-    {
-        return "hi"
-    }
 
-    @Get('create')
-    createUser()
-    {
-        return this.userService.add();
-    }
 }

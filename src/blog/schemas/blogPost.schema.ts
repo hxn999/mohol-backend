@@ -14,7 +14,7 @@ export class BlogPost {
 
    // Reference to User (author)
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
-  author: User;
+  authorId: mongoose.Schema.Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   richText: string;

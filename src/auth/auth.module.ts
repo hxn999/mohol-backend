@@ -3,6 +3,9 @@ import { jwtConstants } from './constants';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { UserService } from 'src/user/user.service';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory/casl-ability.factory';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
     imports: [
@@ -12,8 +15,9 @@ import { AuthService } from './auth.service';
             secret: jwtConstants.secret,
             signOptions: { expiresIn: '60s' },
         }),
+        UserModule,
     ],
     controllers: [AuthController],
-    providers: [AuthService],
+    providers: [AuthService,CaslAbilityFactory],
 })
 export class AuthModule { }

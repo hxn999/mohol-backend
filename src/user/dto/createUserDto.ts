@@ -39,9 +39,6 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'Password is required.' })
   @IsString({ message: 'Password must be a string.' })
   @MinLength(8, { message: 'Password must be at least 8 characters long.' })
-  @Matches(/^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/, {
-    message: 'Password must contain at least one uppercase letter, one number, and one special character (e.g., !@#$%^&*).',
-  })
   password: string;
 
   // institute: string (optional, trim)

@@ -7,10 +7,11 @@ import { BlogModule } from './blog/blog.module';
 import { BooksModule } from './books/books.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CaslModule } from './casl/casl.module';
 
 
 @Module({
-  imports: [MongooseModule.forRoot('mongodb://localhost/mindscape'), UserModule, BlogModule, BooksModule, AuthModule, DashboardModule],
+  imports: [MongooseModule.forRoot('mongodb://localhost/mindscape'), UserModule, BlogModule, BooksModule, AuthModule, DashboardModule, CaslModule],
   controllers: [AppController],
   providers: [AppService],
 })

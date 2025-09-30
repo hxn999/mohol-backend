@@ -13,11 +13,11 @@ export class Comment {
 
   // Comment belongs to a User (who wrote it)
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
-  author: mongoose.Types.ObjectId;
+  authorId: mongoose.Types.ObjectId;
 
   // Comment belongs to a BlogPost
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'BlogPost', required: true })
-  post: mongoose.Types.ObjectId;
+  postId: mongoose.Types.ObjectId;
 }
 
 

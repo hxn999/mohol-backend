@@ -57,14 +57,17 @@ export class UserService {
     }
   }
 
-  async findMany(query: string): Promise<UserDocument[]> {
+  async findMany(query: Object): Promise<UserDocument[]> {
     try {
       // matches with email or mongo id
-      const users = await this.userModel.find({ $or: [{ email: query }, { _id: query }] }).exec();
+     
+      let users = await this.userModel.find(query).exec();
+     
       if (!users) {
         throw new NotFoundException(`User with id ${query} not found`);
       }
       return users;
+      
     } catch (error) {
       throw new BadRequestException(error.message);
     }
@@ -75,7 +78,14 @@ export class UserService {
   async deleteOne(query: string): Promise<DeleteResult> {
     try {
       // matches with email or mongo id
-      const deletedUserResult = await this.userModel.deleteOne({ $or: [{ email: query }, { _id: query }] }).exec();
+      let deletedUserResult;
+      if (Types.ObjectId.isValid(query)) {
+        deletedUserResult = await this.userModel.deleteOne({ _id:  new Types.ObjectId(query) }).exec();
+      }
+      else{
+        deletedUserResult = await this.userModel.deleteOne({ email:  query }).exec();
+      }
+
       if (!deletedUserResult) {
         throw new NotFoundException(`User with id ${query} not found`);
       }
@@ -85,21 +95,31 @@ export class UserService {
     }
   }
 
-  async deleteMany(query: string): Promise<DeleteResult> {
-    try {
-      // matches with email or mongo id
-      const deletedUserResult = await this.userModel.deleteMany({ $or: [{ email: query }, { _id: query }] }).exec();
-
-      return deletedUserResult;
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
-  }
+  // async deleteMany(query: string): Promise<DeleteResult> {
+  //   try {
+  //     // matches with email or mongo id
+  //     let deletedUserResult;
+  //     if (Types.ObjectId.isValid(query)) {
+  //       deletedUserResult = await this.userModel.deleteMany({ _id:  new Types.ObjectId(query) }).exec();
+  //     }
+  //     else{
+  //       deletedUserResult = await this.userModel.deleteMany({ email:  query }).exec();
+  //     }
+  //     return deletedUserResult;
+  //   } catch (error) {
+  //     throw new BadRequestException(error.message);
+  //   }
+  // }
   async updateOne(query: string, updatedUser): Promise<UpdateWriteOpResult> {
     try {
       // matches with email or mongo id
-      const updatedUserResult = await this.userModel.updateOne({ $or: [{ email: query }, { _id: query }] }, { $set: updatedUser }).exec();
-
+     let updatedUserResult;
+      if (Types.ObjectId.isValid(query)) {
+        updatedUserResult = await this.userModel.updateOne({ _id:  new Types.ObjectId(query) },{$set:updatedUser}).exec();
+      }
+      else{
+        updatedUserResult = await this.userModel.updateOne({ email:  query },{$set:updatedUser}).exec();
+      }
       return updatedUserResult;
     } catch (error) {
       throw new BadRequestException(error.message);

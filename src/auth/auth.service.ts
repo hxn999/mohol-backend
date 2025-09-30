@@ -5,11 +5,11 @@ import { User, UserDocument } from 'src/user/schemas/user.schema';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/user/dto/createUserDto';
 import { UserRole } from 'src/user/userRolesEnum';
-
+import { totp, authenticator } from 'otplib';
 
 export type UserPayload = {
     name: string,
-    email:string,
+    email: string,
     role: UserRole,
     _id: string,
 }
@@ -19,7 +19,8 @@ export class AuthService {
 
     constructor(
         private userService: UserService,
-        private jwtService: JwtService
+        private jwtService: JwtService,
+        private emailSecretMap: any
     ) { }
 
     async signIn(email: string, password: string): Promise<any> {
@@ -108,6 +109,143 @@ export class AuthService {
         }
     }
 
+
+    async changePassword(email: string, prevPassword: string, newPassword: string): Promise<any> {
+        try {
+            let foundUser: UserDocument = await this.userService.findOne(email)
+
+            if (!foundUser) {
+                throw new NotFoundException("User account does not exists !")
+            }
+
+
+
+            let passwordMatch = await bcrypt.compare(prevPassword, foundUser.password);
+
+            if (!passwordMatch) {
+                throw new NotAcceptableException("Wront credentials !")
+            }
+
+            const saltOrRounds = 10;
+            const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
+
+            // update password in db
+            this.userService.updateOne(email, { password: hashedPassword })
+
+
+
+            // generating security tokens with jsonwebtoken
+
+            const payload = {
+                name: foundUser.name,
+                email: foundUser.email,
+                role: foundUser.role,
+                _id: foundUser._id,
+            }
+
+            const accessToken = await this.jwtService.signAsync(payload)
+            const refreshToken = await this.jwtService.signAsync(payload, { expiresIn: '30d' })
+
+
+            return {
+                user: {
+                    name: foundUser.name,
+                    email: foundUser.email,
+                    institute: foundUser.institute,
+                    pfp: foundUser.pfp,
+                    role: foundUser.role,
+                    phone: foundUser.phone,
+                    _id: foundUser._id,
+                },
+                accessToken,
+                refreshToken,
+            }
+
+
+        } catch (error) {
+            throw new BadRequestException(error.message)
+        }
+    }
+
+    async sendOtp(email: string) {
+        try {
+            let foundUser: UserDocument = await this.userService.findOne(email)
+
+            if (!foundUser) {
+                throw new NotFoundException("User account does not exists !")
+            }
+
+            const secret = authenticator.generateSecret()
+
+            // map the secret to user email
+
+            this.emailSecretMap[email] = secret
+
+            const otp = totp.generate(this.emailSecretMap[email])
+
+            sendOtpEmail(email, otp)
+
+            return "otp sent !"
+
+
+        } catch (error) {
+            throw new BadRequestException(error.message)
+        }
+    }
+
+    async verifyOtpAndChangePassword(email: string, otp: string, newPassword: string): Promise<any> {
+        try {
+
+            let foundUser: UserDocument = await this.userService.findOne(email)
+
+            if (!foundUser) {
+                throw new NotFoundException("User account does not exists !")
+            }
+            
+            const otpVerification = totp.check(otp, this.emailSecretMap[email])
+            // changing the secret so that no one can use same otp twice
+            this.emailSecretMap = "garbage"
+
+            const saltOrRounds = 10;
+            const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
+
+            // update password in db
+            await this.userService.updateOne(email, { password: hashedPassword })
+
+
+
+            // generating security tokens with jsonwebtoken
+
+            const payload = {
+                name: foundUser.name,
+                email: foundUser.email,
+                role: foundUser.role,
+                _id: foundUser._id,
+            }
+
+            const accessToken = await this.jwtService.signAsync(payload)
+            const refreshToken = await this.jwtService.signAsync(payload, { expiresIn: '30d' })
+
+
+            return {
+                user: {
+                    name: foundUser.name,
+                    email: foundUser.email,
+                    institute: foundUser.institute,
+                    pfp: foundUser.pfp,
+                    role: foundUser.role,
+                    phone: foundUser.phone,
+                    _id: foundUser._id,
+                },
+                accessToken,
+                refreshToken,
+            }
+
+
+        } catch (error) {
+            throw new BadRequestException(error.message)
+        }
+    }
 
 
 }

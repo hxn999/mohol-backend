@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Response } from 'express';
 import { SigninDto } from './dto/signinDto';
 import { CreateUserDto } from 'src/user/dto/createUserDto';
+import { PassresetDto } from './dto/passResetDto';
 
 @Controller('auth')
 export class AuthController {
@@ -33,6 +34,18 @@ export class AuthController {
         } catch (error) {
             throw new BadRequestException(error.message)
         }
+    }
+
+    @Get("otp/:email")
+    async otp(@Param('email') email:string)
+    {
+        return this.authService.sendOtp(email)
+    }
+
+
+    @Post('password-reset')
+    async passwordReset(@Body() passResetDto: PassresetDto) {
+        return this.authService.verifyOtpAndChangePassword(passResetDto.email,passResetDto.otp,passResetDto.password)
     }
 
 

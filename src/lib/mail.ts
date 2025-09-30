@@ -1,6 +1,7 @@
-const nodemailer = require("nodemailer");
+const nodemailer = require("nodemailer")
 
-
+async function sendOtpEmail(to:string,otp:string) {
+    
 const sampleMail = `
 <html lang="en">
 <head>
@@ -59,7 +60,7 @@ const sampleMail = `
   <div class="container">
     <h1>Mindscape bd</h1>
     <p>Your One-Time Password (OTP) is:</p>
-    <div class="otp">123456</div>
+    <div class="otp">${otp}</div>
     <p>This OTP will expire in 10 minutes. Do not share it with anyone.</p>
     <div class="footer">
       &copy; 2025 Mindscape bd. All rights reserved.
@@ -69,8 +70,6 @@ const sampleMail = `
 </html>
 `
 
-
-async function sendEmail() {
   // 1. Create transporter
   let transporter = nodemailer.createTransport({
   host: "smtp.zoho.com",
@@ -78,20 +77,17 @@ async function sendEmail() {
   secure: true,
   auth: {
     user: "noreply@mindscapebd.org",
-    pass: "is3sESacRt+Hv6v"
+    pass: process.env.ZOHO_PASSWORD
   },
 });
 
   // 2. Send mail
   let info = await transporter.sendMail({
     from: '"Mindscape" <noreply@mindscapebd.org>', 
-    to: "hh8391781@gmail.com",
-    subject: "Test Email from Node.js",
+    to: to,
     subject: "Your OTP for Mindscape bd",
     html: sampleMail,
   });
 
   console.log("Message sent: %s", info.messageId);
 }
-
-sendEmail().catch(console.error);

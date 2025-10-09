@@ -1,8 +1,7 @@
-const nodemailer = require("nodemailer")
+const nodemailer = require('nodemailer');
 
-async function sendOtpEmail(to:string,otp:string) {
-    
-const sampleMail = `
+export async function sendOtpEmail(to: string, otp: string) {
+  const sampleMail = `
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -68,26 +67,26 @@ const sampleMail = `
   </div>
 </body>
 </html>
-`
+`;
 
   // 1. Create transporter
   let transporter = nodemailer.createTransport({
-  host: "smtp.zoho.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: "noreply@mindscapebd.org",
-    pass: process.env.ZOHO_PASSWORD
-  },
-});
+    host: 'smtp.zoho.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: 'noreply@mindscapebd.org',
+      pass: process.env.ZOHO_PASSWORD,
+    },
+  });
 
   // 2. Send mail
   let info = await transporter.sendMail({
-    from: '"Mindscape" <noreply@mindscapebd.org>', 
+    from: '"Mindscape" <noreply@mindscapebd.org>',
     to: to,
-    subject: "Your OTP for Mindscape bd",
+    subject: 'Your OTP for Mindscape bd',
     html: sampleMail,
   });
 
-  console.log("Message sent: %s", info.messageId);
+  console.log('Message sent: %s', info.messageId);
 }

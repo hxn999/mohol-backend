@@ -6,6 +6,9 @@ import { AuthService } from './auth.service';
 import { UserService } from 'src/user/user.service';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory/casl-ability.factory';
 import { UserModule } from 'src/user/user.module';
+import { MongooseModule } from '@nestjs/mongoose';
+import { RefreshToken, RefreshTokenSchema } from './schemas/refreshToken.schema';
+import { RefreshTokenService } from './refreshToken.service';
 
 @Module({
     imports: [
@@ -16,8 +19,9 @@ import { UserModule } from 'src/user/user.module';
             signOptions: { expiresIn: '60s' },
         }),
         UserModule,
+        MongooseModule.forFeature([{ name: RefreshToken.name, schema: RefreshTokenSchema }])
     ],
     controllers: [AuthController],
-    providers: [AuthService,CaslAbilityFactory],
+    providers: [AuthService,CaslAbilityFactory,RefreshTokenService],
 })
 export class AuthModule { }

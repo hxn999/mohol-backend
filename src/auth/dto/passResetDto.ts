@@ -9,15 +9,7 @@ import {
 export class PassresetDto {
 
 
-  // email: string (required, trim)
-  @IsEmail({}, { message: 'Invalid email format.' })
-  @IsNotEmpty({ message: 'Email is required.' })
-  email: string;
-
   
-  @IsNotEmpty({ message: 'Email is required.' })
-  @IsString({message:"Otp must be in string"})
-  otp: string;
 
   // password: string (required) - Enforcing complexity: min 8, uppercase, number, special char
   @IsNotEmpty({ message: 'Password is required.' })

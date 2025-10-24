@@ -41,15 +41,7 @@ export class CreateUserDto {
   @MinLength(8, { message: 'Password must be at least 8 characters long.' })
   password: string;
 
-  // institute: string (optional, trim)
-  @IsOptional()
-  @IsString({ message: 'Institute must be a string.' })
-  institute?: string;
+  
 
-  // role: UserRole (required, enum, default: VIEWER)
-  // We mark it as Optional because the schema provides a default value,
-  // meaning the client is not required to send it.
-  @IsOptional()
-  @IsEnum(UserRole, { message: 'Invalid role provided. Must be one of: VIEWER, EDITOR, ADMIN.' })
-  role?: UserRole;
+  
 }

@@ -19,6 +19,8 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { generateRandomPassword } from 'src/lib/randomPassGen';
 import { sendOtpEmail } from 'src/lib/mail';
+import { jwtConstants } from './constants';
+import { Mongoose, Types } from 'mongoose';
 
 export type UserPayload = {
   name: string;
@@ -38,15 +40,20 @@ type GoogleUser = {
   locale?: string;
 };
 
+type ResetPayload = {
+  _id: string;
+};
+
 @Injectable()
 export class AuthService {
+  private emailSecretMap: any = {};
+
   constructor(
     private userService: UserService,
     private jwtService: JwtService,
     private refreshTokenService: RefreshTokenService,
-    private readonly httpService: HttpService,
-    private readonly configService: ConfigService,
-    private emailSecretMap: any,
+    private httpService: HttpService,
+    private configService: ConfigService,
   ) {}
 
   async login(email: string, password: string, res: Response): Promise<any> {
@@ -180,10 +187,7 @@ export class AuthService {
     }
   }
 
-  async registerByGoogle(
-    res: Response,
-    code: string,
-  ): Promise<any> {
+  async registerByGoogle(res: Response, code: string): Promise<any> {
     try {
       const user = await this.fetchFromGoogle(code);
       // 3. Prepare the redirect URL with user data
@@ -300,6 +304,10 @@ export class AuthService {
         _id: foundUser._id,
       };
 
+      // revoking all logged in refresh tokens
+
+      await this.refreshTokenService.revokeAllForUser(foundUser._id);
+
       const accessToken = await this.jwtService.signAsync(payload);
       const { cookieValue, expiresAt } =
         await this.refreshTokenService.createToken(foundUser._id);
@@ -318,6 +326,36 @@ export class AuthService {
         },
         accessToken,
       });
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<any> {
+    try {
+      const payload: ResetPayload = await this.jwtService.verifyAsync(token, {
+        secret: jwtConstants.secret,
+      });
+      const _id: string = payload._id;
+      let foundUser: UserDocument = await this.userService.findOne(_id);
+
+      if (!foundUser) {
+        throw new NotFoundException('User account does not exists !');
+      }
+
+      const saltOrRounds = 10;
+      const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
+
+      // update password in db
+      this.userService.updateOne(_id, { password: hashedPassword });
+
+      // revoking all logged in refresh tokens
+      const userId = new Types.ObjectId(_id);
+      await this.refreshTokenService.revokeAllForUser(userId);
+
+      return {
+        message: 'Password reset was successful !',
+      };
     } catch (error) {
       throw new BadRequestException(error.message);
     }
@@ -348,12 +386,59 @@ export class AuthService {
     }
   }
 
-  async verifyOtpAndChangePassword(
-    email: string,
-    otp: string,
-    newPassword: string,
-    res: Response,
-  ): Promise<any> {
+  // async verifyOtpAndChangePassword(
+  //   email: string,
+  //   otp: string,
+  //   newPassword: string,
+  //   res: Response,
+  // ): Promise<any> {
+  //   try {
+  //     let foundUser: UserDocument = await this.userService.findOne(email);
+
+  //     if (!foundUser) {
+  //       throw new NotFoundException('User account does not exists !');
+  //     }
+
+  //     const isOtpVerified = totp.check(otp, this.emailSecretMap[email]);
+  //     // changing the secret so that no one can use same otp twice
+  //     this.emailSecretMap = 'garbage';
+
+  //     const saltOrRounds = 10;
+  //     const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
+
+  //     // update password in db
+  //     await this.userService.updateOne(email, { password: hashedPassword });
+
+  //     // generating security tokens with jsonwebtoken
+
+  //     const payload = {
+  //       role: foundUser.role,
+  //       _id: foundUser._id,
+  //     };
+
+  //     const accessToken = await this.jwtService.signAsync(payload);
+  //     const { cookieValue, expiresAt } =
+  //       await this.refreshTokenService.createToken(foundUser._id);
+
+  //     res.cookie('refresh_token', cookieValue, {
+  //       httpOnly: true,
+  //       secure: true,
+  //       sameSite: 'lax',
+  //       expires: expiresAt,
+  //     });
+
+  //     return res.status(200).json({
+  //       user: {
+  //         name: foundUser.name,
+  //         pfp: foundUser.pfp,
+  //       },
+  //       accessToken,
+  //     });
+  //   } catch (error) {
+  //     throw new BadRequestException(error.message);
+  //   }
+  // }
+  async sendPasswordResetLink(email: string) {
     try {
       let foundUser: UserDocument = await this.userService.findOne(email);
 
@@ -361,41 +446,12 @@ export class AuthService {
         throw new NotFoundException('User account does not exists !');
       }
 
-      const isOtpVerified = totp.check(otp, this.emailSecretMap[email]);
-      // changing the secret so that no one can use same otp twice
-      this.emailSecretMap = 'garbage';
+      const token = await this.jwtService.signAsync({ _id: foundUser._id });
 
-      const saltOrRounds = 10;
-      const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
+      //@TODO  to send mail with the reset link
+      // sendOtpEmail(email, otp);
 
-      // update password in db
-      await this.userService.updateOne(email, { password: hashedPassword });
-
-      // generating security tokens with jsonwebtoken
-
-      const payload = {
-        role: foundUser.role,
-        _id: foundUser._id,
-      };
-
-      const accessToken = await this.jwtService.signAsync(payload);
-      const { cookieValue, expiresAt } =
-        await this.refreshTokenService.createToken(foundUser._id);
-
-      res.cookie('refresh_token', cookieValue, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        expires: expiresAt,
-      });
-
-      return res.status(200).json({
-        user: {
-          name: foundUser.name,
-          pfp: foundUser.pfp,
-        },
-        accessToken,
-      });
+      return { message: 'Sending reset link...' };
     } catch (error) {
       throw new BadRequestException(error.message);
     }
@@ -405,7 +461,8 @@ export class AuthService {
     const token = req.cookies['refresh_token'];
     if (!token) throw new UnauthorizedException('No refresh token');
 
-    const { cookieValue, expiresAt } = await this.refreshTokenService.validateAndRotate(token);
+    const { cookieValue, expiresAt } =
+      await this.refreshTokenService.validateAndRotate(token);
 
     const authHeader = req.headers.authorization;
     const tokenFromHeader = authHeader && authHeader.split(' ')[1];
@@ -414,8 +471,8 @@ export class AuthService {
     }
     const decodedPayload = this.jwtService.decode(tokenFromHeader);
     const payload = {
-        _id:decodedPayload._id,
-        role:decodedPayload.role
+      _id: decodedPayload._id,
+      role: decodedPayload.role,
     };
     const newAccessToken = await this.jwtService.signAsync(payload);
 
@@ -426,14 +483,6 @@ export class AuthService {
       expires: expiresAt,
     });
 
-    return res.status(200).json( { accessToken: newAccessToken });
+    return res.status(200).json({ accessToken: newAccessToken });
   }
-
-
-
-
-
-
-
-
 }

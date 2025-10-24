@@ -14,7 +14,7 @@ export class UserService {
 
 
   async create(user: CreateUserDto): Promise<UserDocument> {
-    try {
+   
       // checks for duplicate accounts
       const foundUser = await this.userModel.findOne({ email: user.email }).exec();
       if (foundUser) {
@@ -28,17 +28,13 @@ export class UserService {
 
       const createdUser = new this.userModel(user);
       return await createdUser.save();
-    } catch (error) {
-
-      throw new BadRequestException(error.message);
-    }
+    
   }
 
   async findOne(query: string): Promise<UserDocument> {
-    try {
+  
       // matches with email or mongo id
       
-
       let user;
       if (Types.ObjectId.isValid(query)) {
         user = await this.userModel.findOne({ _id:  new Types.ObjectId(query) }).exec();
@@ -52,13 +48,11 @@ export class UserService {
         throw new NotFoundException(`User with id ${query} not found`);
       }
       return user;
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
+   
   }
 
   async findMany(query: Object): Promise<UserDocument[]> {
-    try {
+    
       // matches with email or mongo id
      
       let users = await this.userModel.find(query).exec();
@@ -68,15 +62,13 @@ export class UserService {
       }
       return users;
       
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
+  
   }
 
 
 
   async deleteOne(query: string): Promise<DeleteResult> {
-    try {
+   
       // matches with email or mongo id
       let deletedUserResult;
       if (Types.ObjectId.isValid(query)) {
@@ -90,9 +82,7 @@ export class UserService {
         throw new NotFoundException(`User with id ${query} not found`);
       }
       return deletedUserResult;
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
+   
   }
 
   // async deleteMany(query: string): Promise<DeleteResult> {

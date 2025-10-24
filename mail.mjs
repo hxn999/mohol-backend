@@ -1,5 +1,8 @@
 // const nodemailer = require("nodemailer");
 
+import { log } from "console";
+import { Types } from "mongoose";
+
 
 const sampleMail = `
 <html lang="en">
@@ -98,16 +101,24 @@ const sampleMail = `
 
 
 
-import { totp } from 'otplib';
+// import { totp } from 'otplib';
 
-totp.options = {
-  step: 120, // 30 seconds
-  digits: 6, // 6-digit otp
+// totp.options = {
+//   step: 120, // 30 seconds
+//   digits: 6, // 6-digit otp
 
+// };
+
+// console.log(totp.generate("G4GCSCBSPVDV63TC"))
+// console.log("Check",totp.check("984822","G4GCSCBSPVDV63TC"))
+// console.log("verify",totp.verify({token:"984822",secret:"G4GCSCBSPVDV63TC"}))
+
+const paramsObject = {
+  q: 'nodejs',
+  page: '1',
+  limit: '10'
 };
-
-console.log(totp.generate("G4GCSCBSPVDV63TC"))
-console.log("Check",totp.check("984822","G4GCSCBSPVDV63TC"))
-console.log("verify",totp.verify({token:"984822",secret:"G4GCSCBSPVDV63TC"}))
-
+const searchParams = new URLSearchParams(paramsObject);
+log(searchParams.toString())
+log(new Types.ObjectId().toHexString())
 

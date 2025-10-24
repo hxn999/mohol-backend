@@ -17,6 +17,7 @@ import { Request, Response } from 'express';
 import { SigninDto } from './dto/signinDto';
 import { CreateUserDto } from 'src/user/dto/createUserDto';
 import { PassresetDto } from './dto/passResetDto';
+import { PasswordChangeDto } from './dto/passwordChangeDto';
 
 @Controller('auth')
 export class AuthController {
@@ -52,21 +53,30 @@ export class AuthController {
     return this.authService.refreshAccessToken(req,res)
   }
 
-  @Get('otp/:email')
-  async otp(@Param('email') email: string) {
+  @Post('password-change')
+  async passwordChange(
+    @Req() req: Request & { user?: { _id?: string } },
+    @Res() res: Response,
+    @Body() passchangeDto: PasswordChangeDto
+  ) {
+    if (!req.user || !req.user._id) {
+      throw new Error('User ID is missing from request');
+    }
+    return this.authService.changePassword(
+      req.user._id,
+      passchangeDto.prevPassword,
+      passchangeDto.newPassword,
+      res
+    );
+  }
+
+  @Get('password-reset-request/')
+  async otp(@Body('email') email: string) {
     return this.authService.sendOtp(email);
   }
 
   @Post('password-reset')
-  async passwordReset(
-    @Res() res: Response,
-    @Body() passResetDto: PassresetDto,
-  ) {
-    return this.authService.verifyOtpAndChangePassword(
-      passResetDto.email,
-      passResetDto.otp,
-      passResetDto.password,
-      res,
-    );
+  async passwordReset( @Query('token') token:string ,@Body() passResetDto: PassresetDto,) {
+    return this.authService.resetPassword(token,passResetDto.password);
   }
 }

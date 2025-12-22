@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotAcceptableException,
   NotFoundException,
@@ -19,12 +21,11 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { generateRandomPassword } from 'src/lib/randomPassGen';
 import { sendOtpEmail } from 'src/lib/mail';
-import { jwtConstants } from './constants';
 import { Mongoose, Types } from 'mongoose';
+import { RequestWithAuth } from './auth.controller';
+import { Action } from 'src/casl/actionEnum';
 
 export type UserPayload = {
-  name: string;
-  email: string;
   role: UserRole;
   _id: string;
 };
@@ -91,44 +92,13 @@ export class AuthService {
         expires: expiresAt,
       });
 
-      return res.status(200).json({
-        user: {
-          name: foundUser.name,
-          pfp: foundUser.pfp,
-        },
-        accessToken,
-      });
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  async loginByGoogle(res: Response, code: string): Promise<any> {
-    try {
-      const user: GoogleUser = await this.fetchFromGoogle(code);
-
-      let foundUser: UserDocument = await this.userService.findOne(user.email);
-
-      if (!foundUser) {
-        throw new NotFoundException('User account does not exists !');
-      }
-
-      // generating security tokens with jsonwebtoken
-
-      const payload = {
-        role: foundUser.role,
-        _id: foundUser._id,
-      };
-
-      const accessToken = await this.jwtService.signAsync(payload);
-      const { cookieValue, expiresAt } =
-        await this.refreshTokenService.createToken(foundUser._id);
-
-      res.cookie('refresh_token', cookieValue, {
+      // Set accessToken cookie with 15 minutes expiry
+      const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'lax',
-        expires: expiresAt,
+        expires: accessTokenExpiry,
       });
 
       return res.status(200).json({
@@ -136,21 +106,65 @@ export class AuthService {
           name: foundUser.name,
           pfp: foundUser.pfp,
         },
-        accessToken,
       });
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
 
-  async logout(req: Request, res: Response) {
+  // async loginByGoogle(res: Response, code: string): Promise<any> {
+  //   try {
+  //     const user: GoogleUser = await this.fetchFromGoogle(code);
+
+  //     let foundUser: UserDocument = await this.userService.findOne(user.email);
+
+  //     if (!foundUser) {
+  //       throw new NotFoundException('User account does not exists !');
+  //     }
+
+  //     // generating security tokens with jsonwebtoken
+
+  //     const payload = {
+  //       role: foundUser.role,
+  //       _id: foundUser._id,
+  //     };
+
+  //     const accessToken = await this.jwtService.signAsync(payload);
+  //     const { cookieValue, expiresAt } =
+  //       await this.refreshTokenService.createToken(foundUser._id);
+
+  //     res.cookie('refresh_token', cookieValue, {
+  //       httpOnly: true,
+  //       secure: true,
+  //       sameSite: 'lax',
+  //       expires: expiresAt,
+  //     });
+
+  //     return res.status(200).json({
+  //       user: {
+  //         name: foundUser.name,
+  //         pfp: foundUser.pfp,
+  //       },
+  //       accessToken,
+  //     });
+  //   } catch (error) {
+  //     throw new BadRequestException(error.message);
+  //   }
+  // }
+
+  async logout(req: Request, res: Response): Promise<any> {
     const token = req.cookies['refresh_token'];
+
     if (token) {
-      const [id] = token.split('.');
+      const [id, r] = token.split('.');
       await this.refreshTokenService.revoke(id);
       res.clearCookie('refresh_token');
     }
-    return { message: 'Logged out successfully' };
+
+    // Clear accessToken cookie
+    res.clearCookie('accessToken');
+
+    res.json({ message: 'Logged out successfully' }).send();
   }
 
   async register(userBody: CreateUserDto, res: Response): Promise<any> {
@@ -175,50 +189,13 @@ export class AuthService {
         expires: expiresAt,
       });
 
-      return res.status(200).json({
-        user: {
-          name: createdUser.name,
-          pfp: createdUser.pfp,
-        },
-        accessToken,
-      });
-    } catch (error) {
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  async registerByGoogle(res: Response, code: string): Promise<any> {
-    try {
-      const user = await this.fetchFromGoogle(code);
-      // 3. Prepare the redirect URL with user data
-      //   const userParam = encodeURIComponent(JSON.stringify(user));
-      const redirectUrl = `http://localhost:3000/profile?user=`;
-
-      const newUser: CreateUserDto = {
-        name: user.name,
-        email: user.email,
-        pfp: user.picture,
-        password: generateRandomPassword(),
-      };
-
-      let createdUser: UserDocument = await this.userService.create(newUser);
-
-      // generating security tokens with jsonwebtoken
-
-      const payload = {
-        role: createdUser.role,
-        _id: createdUser._id,
-      };
-
-      const accessToken = await this.jwtService.signAsync(payload);
-      const { cookieValue, expiresAt } =
-        await this.refreshTokenService.createToken(createdUser._id);
-
-      res.cookie('refresh_token', cookieValue, {
+      // Set accessToken cookie with 15 minutes expiry
+      const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'lax',
-        expires: expiresAt,
+        expires: accessTokenExpiry,
       });
 
       return res.status(200).json({
@@ -226,116 +203,159 @@ export class AuthService {
           name: createdUser.name,
           pfp: createdUser.pfp,
         },
-        accessToken,
-        url: redirectUrl,
       });
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
 
-  async fetchFromGoogle(code: string): Promise<GoogleUser> {
-    const tokenUrl = 'https://oauth2.googleapis.com/token';
-    const tokenParams = {
-      code,
-      client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
-      client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-      redirect_uri: 'http://localhost:3000/api/google/callback', // Your NestJS redirect URI
-      grant_type: 'authorization_code',
-    };
+  // async registerByGoogle(res: Response, code: string): Promise<any> {
+  //   try {
+  //     const user = await this.fetchFromGoogle(code);
+  //     // 3. Prepare the redirect URL with user data
+  //     //   const userParam = encodeURIComponent(JSON.stringify(user));
+  //     const redirectUrl = `http://localhost:3000/profile?user=`;
 
-    // Use URLSearchParams to encode the body as x-www-form-urlencoded
-    const body = new URLSearchParams(
-      tokenParams as Record<string, string>,
-    ).toString();
+  //     const newUser: CreateUserDto = {
+  //       name: user.name,
+  //       email: user.email,
+  //       password: generateRandomPassword(),
+  //     };
 
-    // Import firstValueFrom at the top: import { firstValueFrom } from 'rxjs';
-    const tokenResponse = await firstValueFrom(
-      this.httpService.post(tokenUrl, body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      }),
-    );
-    const tokens = tokenResponse.data;
+  //     let createdUser: UserDocument = await this.userService.create(newUser);
 
-    // 2. Get user info with the access token
-    const userInfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
-    const userInfoResponse = await firstValueFrom(
-      this.httpService.get(userInfoUrl, {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-      }),
-    );
+  //     // generating security tokens with jsonwebtoken
 
-    const user: GoogleUser = userInfoResponse.data;
-    return user;
-  }
+  //     const payload = {
+  //       role: createdUser.role,
+  //       _id: createdUser._id,
+  //     };
+
+  //     const accessToken = await this.jwtService.signAsync(payload);
+  //     const { cookieValue, expiresAt } =
+  //       await this.refreshTokenService.createToken(createdUser._id);
+
+  //     res.cookie('refresh_token', cookieValue, {
+  //       httpOnly: true,
+  //       secure: true,
+  //       sameSite: 'lax',
+  //       expires: expiresAt,
+  //     });
+
+  //     return res.status(200).json({
+  //       user: {
+  //         name: createdUser.name,
+  //         pfp: createdUser.pfp,
+  //       },
+  //       accessToken,
+  //       url: redirectUrl,
+  //     });
+  //   } catch (error) {
+  //     throw new BadRequestException(error.message);
+  //   }
+  // }
+
+  // async fetchFromGoogle(code: string): Promise<GoogleUser> {
+  //   const tokenUrl = 'https://oauth2.googleapis.com/token';
+  //   const tokenParams = {
+  //     code,
+  //     client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+  //     client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
+  //     redirect_uri: 'http://localhost:3000/api/google/callback', // Your NestJS redirect URI
+  //     grant_type: 'authorization_code',
+  //   };
+
+  //   // Use URLSearchParams to encode the body as x-www-form-urlencoded
+  //   const body = new URLSearchParams(
+  //     tokenParams as Record<string, string>,
+  //   ).toString();
+
+  //   // Import firstValueFrom at the top: import { firstValueFrom } from 'rxjs';
+  //   const tokenResponse = await firstValueFrom(
+  //     this.httpService.post(tokenUrl, body, {
+  //       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  //     }),
+  //   );
+  //   const tokens = tokenResponse.data;
+
+  //   // 2. Get user info with the access token
+  //   const userInfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
+  //   const userInfoResponse = await firstValueFrom(
+  //     this.httpService.get(userInfoUrl, {
+  //       headers: { Authorization: `Bearer ${tokens.access_token}` },
+  //     }),
+  //   );
+
+  //   const user: GoogleUser = userInfoResponse.data;
+  //   return user;
+  // }
 
   async changePassword(
-    email: string,
+    req: RequestWithAuth,
     prevPassword: string,
     newPassword: string,
     res: Response,
   ): Promise<any> {
-    try {
-      let foundUser: UserDocument = await this.userService.findOne(email);
+    let foundUser: UserDocument = await this.userService.findOne(req.user._id);
 
-      if (!foundUser) {
-        throw new NotFoundException('User account does not exists !');
-      }
-
-      let passwordMatch = await bcrypt.compare(
-        prevPassword,
-        foundUser.password,
-      );
-
-      if (!passwordMatch) {
-        throw new NotAcceptableException('Wront credentials !');
-      }
-
-      const saltOrRounds = 10;
-      const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
-
-      // update password in db
-      this.userService.updateOne(email, { password: hashedPassword });
-
-      // generating security tokens with jsonwebtoken
-
-      const payload = {
-        role: foundUser.role,
-        _id: foundUser._id,
-      };
-
-      // revoking all logged in refresh tokens
-
-      await this.refreshTokenService.revokeAllForUser(foundUser._id);
-
-      const accessToken = await this.jwtService.signAsync(payload);
-      const { cookieValue, expiresAt } =
-        await this.refreshTokenService.createToken(foundUser._id);
-
-      res.cookie('refresh_token', cookieValue, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        expires: expiresAt,
-      });
-
-      return res.status(200).json({
-        user: {
-          name: foundUser.name,
-          pfp: foundUser.pfp,
-        },
-        accessToken,
-      });
-    } catch (error) {
-      throw new BadRequestException(error.message);
+    if (!foundUser) {
+      throw new NotFoundException('User account does not exists !');
     }
+
+    let passwordMatch = await bcrypt.compare(prevPassword, foundUser.password);
+
+    if (!passwordMatch) {
+      throw new NotAcceptableException('Wront credentials !');
+    }
+
+    const saltOrRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
+
+    // update password in db
+    this.userService.updateOne(req.user._id, { password: hashedPassword });
+
+    // generating security tokens with jsonwebtoken
+
+    const payload = {
+      role: foundUser.role,
+      _id: foundUser._id,
+    };
+
+    // revoking all logged in refresh tokens
+
+    await this.refreshTokenService.revokeAllForUser(foundUser._id);
+
+    const accessToken = await this.jwtService.signAsync(payload);
+    const { cookieValue, expiresAt } =
+      await this.refreshTokenService.createToken(foundUser._id);
+
+    res.cookie('refresh_token', cookieValue, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      expires: expiresAt,
+    });
+
+    // Set accessToken cookie with 15 minutes expiry
+    const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      expires: accessTokenExpiry,
+    });
+
+    return res.status(200).json({
+      user: {
+        name: foundUser.name,
+        pfp: foundUser.pfp,
+      },
+    });
   }
 
   async resetPassword(token: string, newPassword: string): Promise<any> {
     try {
-      const payload: ResetPayload = await this.jwtService.verifyAsync(token, {
-        secret: jwtConstants.secret,
-      });
+      const payload: ResetPayload = await this.jwtService.verifyAsync(token);
       const _id: string = payload._id;
       let foundUser: UserDocument = await this.userService.findOne(_id);
 
@@ -461,18 +481,14 @@ export class AuthService {
     const token = req.cookies['refresh_token'];
     if (!token) throw new UnauthorizedException('No refresh token');
 
-    const { cookieValue, expiresAt } =
+    const { cookieValue, expiresAt, userId } =
       await this.refreshTokenService.validateAndRotate(token);
 
-    const authHeader = req.headers.authorization;
-    const tokenFromHeader = authHeader && authHeader.split(' ')[1];
-    if (!tokenFromHeader) {
-      throw new UnauthorizedException('No authorization token');
-    }
-    const decodedPayload = this.jwtService.decode(tokenFromHeader);
+    const foundUser = await this.userService.findOne(userId.toString());
+
     const payload = {
-      _id: decodedPayload._id,
-      role: decodedPayload.role,
+      _id: userId,
+      role: foundUser.role,
     };
     const newAccessToken = await this.jwtService.signAsync(payload);
 
@@ -483,6 +499,42 @@ export class AuthService {
       expires: expiresAt,
     });
 
-    return res.status(200).json({ accessToken: newAccessToken });
+    // Set accessToken cookie with 15 minutes expiry
+    const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    res.cookie('accessToken', newAccessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      expires: accessTokenExpiry,
+    });
+
+    return res
+      .status(200)
+      .json({ message: 'Access token refreshed successfully' });
+  }
+
+  async getCurrentUser(userId: string): Promise<any> {
+    const user: UserDocument = await this.userService.findOne(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Return public user information (exclude password)
+    return {
+      userId: user.userId,
+      name: user.name,
+      pfp: user.pfp,
+      email: user.email,
+      phone: user.phone,
+      phone2: user.phone2,
+      address: user.address,
+      district:user.district,
+      city: user.city,
+      deliver_instructions: user.deliver_instructions,
+      role: user.role,
+      cart: user.cart,
+      wishlist: user.wishlist,
+    };
   }
 }

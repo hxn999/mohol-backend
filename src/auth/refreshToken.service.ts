@@ -1,10 +1,11 @@
 // src/auth/refresh-token.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { RefreshToken } from './schemas/refreshToken.schema';
 import * as crypto from 'crypto';
+
 
 @Injectable()
 export class RefreshTokenService {
@@ -26,16 +27,16 @@ export class RefreshTokenService {
 
     // cookie value: "<id>.<raw>"
     const cookieValue = `${created._id}.${rawToken}`;
-    return { cookieValue, expiresAt };
+    return { cookieValue, expiresAt,userId };
   }
 
   async validateAndRotate(cookieValue: string) {
     const [id, raw] = cookieValue.split('.');
-    if (!id || !raw) throw new Error('Malformed refresh token');
+    if (!id || !raw) throw new UnauthorizedException('Malformed refresh token');
 
     const record = await this.refreshTokenModel.findById(id);
-    if (!record || record.revoked) throw new Error('Token invalid');
-    if (record.expiresAt < new Date()) throw new Error('Token expired');
+    if (!record || record.revoked) throw new UnauthorizedException('Token invalid');
+    if (record.expiresAt < new Date()) throw new UnauthorizedException('Token expired');
 
     const match = await bcrypt.compare(raw, record.tokenHash);
     if (!match) {

@@ -13,12 +13,7 @@ import {
  * Phone numbers are validated for Bangladesh format.
  */
 export class UpdateUserDto {
-  // name: string (optional, trim)
-  @IsOptional()
-  @IsString({ message: 'Name must be a string.' })
-  @IsNotEmpty({ message: 'Name cannot be empty.' })
-  @MaxLength(100, { message: 'Name cannot exceed 100 characters.' })
-  name?: string;
+  // name: string (optional, trim
 
   // phone: string (optional, trim) - Bangladesh phone number
   @IsOptional()
@@ -42,7 +37,7 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString({ message: 'Division must be a string.' })
   @MaxLength(100, { message: 'Division cannot exceed 100 characters.' })
-  division?: string;
+  district?: string;
 
   // city: string (optional, trim)
   @IsOptional()

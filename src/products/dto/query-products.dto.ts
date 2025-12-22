@@ -48,4 +48,8 @@ export class QueryProductsDto {
   @Type(() => Number)
   @IsOptional()
   maxPrice?: number;
+
+  @IsString()
+  @IsOptional()
+  search?: string;
 }

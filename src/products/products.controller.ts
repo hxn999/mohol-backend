@@ -21,14 +21,18 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService,
-    private cloudinaryService:CloudinaryService
-  ) {}
+  constructor(private readonly productsService: ProductsService) {}
 
   // GET /products
   @Get()
   async getAll(@Query() query: QueryProductsDto) {
     return this.productsService.findAll(query);
+  }
+
+  // GET /products/search
+  @Get('/search')
+  async searchProducts(@Query('text') searchString: string) {
+    return this.productsService.search(searchString);
   }
 
   // GET /products/single?id=...
@@ -38,9 +42,13 @@ export class ProductsController {
   }
 
   // POST /products
-  @Post()
-  async create(@Body() body: CreateProductDto) {
-    return this.productsService.create(body);
+  @Post('/upload')
+  @UseInterceptors(FilesInterceptor('images', 10, multerConfig))
+  async create(
+    @Body() body: CreateProductDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    return await this.productsService.create(files, body);
   }
 
   // PATCH /products/update?id=...
@@ -55,19 +63,19 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 
-  @Post('upload')
-  @UseInterceptors(FileInterceptor('image', multerConfig))
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    console.log(file);
-    const result = await this.cloudinaryService.uploadFile(file)
-    console.log(result)
-    return 'uploaded!'; 
-  }
+  // @Post('upload')
+  // @UseInterceptors(FileInterceptor('image', multerConfig))
+  // async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  //   console.log(file);
+  //   const result = await this.cloudinaryService.uploadFile(file)
+  //   console.log(result)
+  //   return 'uploaded!';
+  // }
 
-  @Post('upload-many')
-  @UseInterceptors(FilesInterceptor('images',3, multerConfig))
-  async uploadManyFile(@UploadedFiles() files:Array< Express.Multer.File>) {
-    console.log(files);
-    return 'uploaded!'; 
-  }
+  // @Post('upload-many')
+  // @UseInterceptors(FilesInterceptor('images',3, multerConfig))
+  // async uploadManyFile(@UploadedFiles() files:Array< Express.Multer.File>) {
+  //   console.log(files);
+  //   return 'uploaded!';
+  // }
 }

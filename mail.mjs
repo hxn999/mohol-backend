@@ -113,12 +113,34 @@ const sampleMail = `
 // console.log("Check",totp.check("984822","G4GCSCBSPVDV63TC"))
 // console.log("verify",totp.verify({token:"984822",secret:"G4GCSCBSPVDV63TC"}))
 
-const paramsObject = {
-  q: 'nodejs',
-  page: '1',
-  limit: '10'
-};
-const searchParams = new URLSearchParams(paramsObject);
-log(searchParams.toString())
-log(new Types.ObjectId().toHexString())
+// const paramsObject = {
+//   q: 'nodejs',
+//   page: '1',
+//   limit: '10'
+// };
+// const searchParams = new URLSearchParams(paramsObject);
+// log(searchParams.toString())
+// log(new Types.ObjectId().toHexString())
 
+// const users = [
+//   { id: 1, name: 'Hasan', age: 21 },
+//   { id: 2, name: 'Ayesha', age: 22 },
+//   { id: 3, name: 'Rahim', age: 20 }
+// ];
+
+// console.table(users);
+
+// import {generateSlug} from ''
+
+// function generateSlug(title) {
+//   let slug = title
+//     .toLowerCase()
+//     .trim()
+//     .replace(/[^\w\s-]/g, '')
+//     .replace(/[\s_-]+/g, '-')
+//     .replace(/^-+|-+$/g, '');
+  
+//   return slug;
+// };
+
+// console.log(generateSlug("Oud Al Layl Premium"))

@@ -7,7 +7,7 @@ export type ProductDocument = HydratedDocument<Product>;
 export class Comment {
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   userId: Types.ObjectId;
-
+  
   @Prop({ required: true, trim: true, maxlength: 1000 })
   comment: string;
 
@@ -26,8 +26,15 @@ export class Variant {
 
 @Schema({ timestamps: true })
 export class Product {
+
   @Prop({ required: true, trim: true, maxlength: 200 })
   title: string;
+
+  @Prop({ required: true })
+  images_url: string[];
+
+  @Prop({ required: true ,default:0})
+  top_image: number;
 
   @Prop({ required: true, trim: true, maxlength: 2000 })
   description: string;
@@ -48,14 +55,16 @@ export class Product {
   @Prop({ required: true, min: 0 })
   price: number;
 
-  @Prop({ required: true, min: 0 })
+  @Prop({  min: 0 })
   lastingTime: number; // in hours
 
-  @Prop({ required: true, trim: true, maxlength: 100 })
+  @Prop({  trim: true, maxlength: 100 })
   smellProjection: string; // e.g., 'Close to skin', 'Moderate', 'Strong'
 
-  @Prop({ required: true, unique: true, trim: true, uppercase: true })
-  sku: string; // Stock Keeping Unit
+  // @Prop({ required: true, unique: true, trim: true, uppercase: true })
+  // sku: string; 
+  @Prop({ required: true, unique: true, trim: true })
+  public_url: string; 
 
   @Prop({ required: true, min: 0, default: 0 })
   stock: number;

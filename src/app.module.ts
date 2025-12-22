@@ -14,6 +14,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HttpModule } from '@nestjs/axios';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -27,9 +29,13 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     ProductsModule,
     CouponModule,
     OrdersModule,
+    CaslModule,
     PaymentsModule,
     AnalyticsModule,
     CloudinaryModule,
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

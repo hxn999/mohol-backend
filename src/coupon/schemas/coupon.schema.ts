@@ -1,10 +1,10 @@
-// src/payments/schemas/coupon.schema.ts
+// src/coupon/schemas/coupon.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export type CouponDocument = Coupon & Document;
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, _id: false })
 export class CouponUsage {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
@@ -12,11 +12,11 @@ export class CouponUsage {
   @Prop({ type: Number, default: 1 })
   timesUsed: number;
 
-  @Prop({ default: Date.now })
+  @Prop({ type: Date, default: Date.now })
   lastUsed: Date;
 }
 
-@Schema()
+@Schema({ timestamps: true })
 export class Coupon {
   @Prop({ required: true, unique: true, uppercase: true, trim: true })
   code: string; // e.g., 'SUMMER25'
@@ -54,11 +54,11 @@ export class Coupon {
   @Prop({ default: true })
   isActive: boolean;
 
-  @Prop()
-  validFrom?: Date;
+  @Prop({ type: Date, required: true })
+  validFrom: Date;
 
-  @Prop()
-  validUntil?: Date;
+  @Prop({ type: Date, required: true })
+  validUntil: Date;
 
   @Prop({ default: '' })
   note?: string; // admin note
@@ -67,3 +67,4 @@ export class Coupon {
 export const CouponSchema = SchemaFactory.createForClass(Coupon);
 CouponSchema.index({ code: 1 });
 CouponSchema.index({ isActive: 1, validUntil: 1 });
+CouponSchema.index({ validFrom: 1 });

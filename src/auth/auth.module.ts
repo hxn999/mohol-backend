@@ -1,5 +1,4 @@
-import { Module } from '@nestjs/common';
-import { jwtConstants } from './constants';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -14,22 +13,36 @@ import {
 import { RefreshTokenService } from './refreshToken.service';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AuthGuard } from './auth.guard';
+import { CaslModule } from 'src/casl/casl.module';
+
 
 @Module({
   imports: [
-    JwtModule.register({
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
       global: true,
-      secret: jwtConstants.secret,
-      signOptions: { expiresIn: '60s' },
+      useFactory: async (configService: ConfigService) => ({
+        // Retrieve the secret and expiration time from environment variables
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          'your-default-jwt-secret-key-change-this-in-production',
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRATION_TIME') || '1h',
+        },
+      }),
     }),
-    UserModule,
+    forwardRef(() => UserModule),
     MongooseModule.forFeature([
       { name: RefreshToken.name, schema: RefreshTokenSchema },
     ]),
     HttpModule,
     ConfigModule,
+    CaslModule
   ],
   controllers: [AuthController],
-  providers: [AuthService, CaslAbilityFactory, RefreshTokenService],
+  providers: [AuthService, RefreshTokenService,AuthGuard],
+  exports:[AuthGuard]
 })
 export class AuthModule {}

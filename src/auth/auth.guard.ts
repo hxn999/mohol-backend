@@ -8,7 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory/casl-ability.factory';
 import { UserPayload } from './auth.service';
-import { User } from 'src/user/schemas/user.schema';
+import { User } from 'src/database/database.types';
 
 @Injectable()
 export class AuthGuard implements CanActivate {

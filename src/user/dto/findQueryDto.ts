@@ -1,10 +1,10 @@
-import { Types } from "mongoose";
 import { UserRole } from "../userRolesEnum";
 
 export class FindQueryDto{
     name?:string;
     email?:string;
-    _id?:Types.ObjectId;
+    id?:string;
+    username?:string;
     institute?:string;
     role?:UserRole;
 }

@@ -9,8 +9,13 @@ Create a `.env` file in the root directory with the following variables:
 JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-random
 JWT_EXPIRATION_TIME=1h
 
-# Database Configuration
-MONGODB_URI=mongodb://localhost:27017/miskbd
+# Database Configuration (PostgreSQL)
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mohol_db
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_POOL_MAX=10
 ```
 
 ## Important Notes
@@ -31,6 +36,12 @@ If no `.env` file is provided, the application will use these default values:
 
 - JWT_SECRET: `your-default-jwt-secret-key-change-this-in-production`
 - JWT_EXPIRATION_TIME: `1h`
+- DB_HOST: `localhost`
+- DB_PORT: `5432`
+- DB_NAME: `mohol_db`
+- DB_USER: `postgres`
+- DB_PASSWORD: `postgres`
+- DB_POOL_MAX: `10`
 
-**⚠️ Warning**: The default JWT secret is not secure for production use!
+**⚠️ Warning**: The default JWT secret and database credentials are not secure for production use!
 

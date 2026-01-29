@@ -24,7 +24,7 @@ import { Action } from 'src/casl/actionEnum';
 import { AuthGuard } from './auth.guard';
 import { AbilitiesGuard } from 'src/casl/abilities.guard';
 
-export type RequestWithAuth = Request & { user: { _id: string } } & {
+export type RequestWithAuth = Request & { user: { id: string; role: string } } & {
   ability: MongoAbility<AbilityTuple, MongoQuery>;
 };
 
@@ -73,7 +73,7 @@ export class AuthController {
     @Res() res: Response,
     @Body() passchangeDto: PasswordChangeDto,
   ) {
-    if (!req.user || !req.user._id) {
+    if (!req.user || !req.user.id) {
       throw new BadRequestException('User ID is missing from request');
     }
 
@@ -101,11 +101,11 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @Get('me')
   async getCurrentUser(@Req() req: RequestWithAuth) {
-    if (!req.user || !req.user._id) {
+    if (!req.user || !req.user.id) {
       throw new BadRequestException('User ID is missing from request');
     }
 
-    const user = await this.authService.getCurrentUser(req.user._id);
+    const user = await this.authService.getCurrentUser(req.user.id);
     return user;
   }
 }

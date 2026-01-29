@@ -7,6 +7,10 @@ import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // // Set global prefix for API routes to avoid conflicts with static files
+  // app.setGlobalPrefix('api');
+  
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -14,7 +18,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: 'http://localhost:3002',
+    origin: 'http://localhost:3000',
     credentials: true,
   });
 

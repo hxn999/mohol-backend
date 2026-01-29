@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from 'src/user/user.service';
 import * as bcrypt from 'bcrypt';
-import { User, UserDocument } from 'src/user/schemas/user.schema';
+import { User } from 'src/database/database.types';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/user/dto/createUserDto';
 import { UserRole } from 'src/user/userRolesEnum';
@@ -21,13 +21,12 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { generateRandomPassword } from 'src/lib/randomPassGen';
 import { sendOtpEmail } from 'src/lib/mail';
-import { Mongoose, Types } from 'mongoose';
 import { RequestWithAuth } from './auth.controller';
 import { Action } from 'src/casl/actionEnum';
 
 export type UserPayload = {
   role: UserRole;
-  _id: string;
+  id: string;
 };
 
 type GoogleUser = {
@@ -42,7 +41,7 @@ type GoogleUser = {
 };
 
 type ResetPayload = {
-  _id: string;
+  id: string;
 };
 
 @Injectable()
@@ -59,7 +58,7 @@ export class AuthService {
 
   async login(email: string, password: string, res: Response): Promise<any> {
     try {
-      let foundUser: UserDocument = await this.userService.findOne(email);
+      let foundUser: User = await this.userService.findOne(email);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
@@ -71,26 +70,26 @@ export class AuthService {
       );
 
       if (!isPasswordMatched) {
-        throw new NotAcceptableException('Wront credentials !');
+        throw new NotAcceptableException('Wrong credentials !');
       }
 
       // generating security tokens with jsonwebtoken
 
       const payload = {
         role: foundUser.role,
-        _id: foundUser._id,
+        id: foundUser.id,
       };
 
       const accessToken = await this.jwtService.signAsync(payload);
-      const { cookieValue, expiresAt } =
-        await this.refreshTokenService.createToken(foundUser._id);
+      // const { cookieValue, expiresAt } =
+      //   await this.refreshTokenService.createToken(foundUser.id);
 
-      res.cookie('refresh_token', cookieValue, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        expires: expiresAt,
-      });
+      // res.cookie('refresh_token', cookieValue, {
+      //   httpOnly: true,
+      //   secure: true,
+      //   sameSite: 'lax',
+      //   expires: expiresAt,
+      // });
 
       // Set accessToken cookie with 15 minutes expiry
       const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -103,8 +102,8 @@ export class AuthService {
 
       return res.status(200).json({
         user: {
-          name: foundUser.name,
-          pfp: foundUser.pfp,
+          name: foundUser.full_name,
+          username: foundUser.username,
         },
       });
     } catch (error) {
@@ -169,25 +168,25 @@ export class AuthService {
 
   async register(userBody: CreateUserDto, res: Response): Promise<any> {
     try {
-      let createdUser: UserDocument = await this.userService.create(userBody);
+      let createdUser: User = await this.userService.create(userBody);
 
       // generating security tokens with jsonwebtoken
 
       const payload = {
         role: createdUser.role,
-        _id: createdUser._id,
+        id: createdUser.id,
       };
 
       const accessToken = await this.jwtService.signAsync(payload);
-      const { cookieValue, expiresAt } =
-        await this.refreshTokenService.createToken(createdUser._id);
+      // const { cookieValue, expiresAt } =
+      //   await this.refreshTokenService.createToken(createdUser.id);
 
-      res.cookie('refresh_token', cookieValue, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        expires: expiresAt,
-      });
+      // res.cookie('refresh_token', cookieValue, {
+      //   httpOnly: true,
+      //   secure: true,
+      //   sameSite: 'lax',
+      //   expires: expiresAt,
+      // });
 
       // Set accessToken cookie with 15 minutes expiry
       const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -200,8 +199,8 @@ export class AuthService {
 
       return res.status(200).json({
         user: {
-          name: createdUser.name,
-          pfp: createdUser.pfp,
+          name: createdUser.full_name,
+          username: createdUser.username,
         },
       });
     } catch (error) {
@@ -296,7 +295,7 @@ export class AuthService {
     newPassword: string,
     res: Response,
   ): Promise<any> {
-    let foundUser: UserDocument = await this.userService.findOne(req.user._id);
+    let foundUser: User = await this.userService.findOne(req.user.id);
 
     if (!foundUser) {
       throw new NotFoundException('User account does not exists !');
@@ -305,29 +304,29 @@ export class AuthService {
     let passwordMatch = await bcrypt.compare(prevPassword, foundUser.password);
 
     if (!passwordMatch) {
-      throw new NotAcceptableException('Wront credentials !');
+      throw new NotAcceptableException('Wrong credentials !');
     }
 
     const saltOrRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
 
     // update password in db
-    this.userService.updateOne(req.user._id, { password: hashedPassword });
+    await this.userService.updateOne(req.user.id, { password: hashedPassword });
 
     // generating security tokens with jsonwebtoken
 
     const payload = {
       role: foundUser.role,
-      _id: foundUser._id,
+      id: foundUser.id,
     };
 
     // revoking all logged in refresh tokens
 
-    await this.refreshTokenService.revokeAllForUser(foundUser._id);
+    await this.refreshTokenService.revokeAllForUser(foundUser.id);
 
     const accessToken = await this.jwtService.signAsync(payload);
     const { cookieValue, expiresAt } =
-      await this.refreshTokenService.createToken(foundUser._id);
+      await this.refreshTokenService.createToken(foundUser.id);
 
     res.cookie('refresh_token', cookieValue, {
       httpOnly: true,
@@ -347,8 +346,8 @@ export class AuthService {
 
     return res.status(200).json({
       user: {
-        name: foundUser.name,
-        pfp: foundUser.pfp,
+        name: foundUser.full_name,
+        username: foundUser.username,
       },
     });
   }
@@ -356,8 +355,8 @@ export class AuthService {
   async resetPassword(token: string, newPassword: string): Promise<any> {
     try {
       const payload: ResetPayload = await this.jwtService.verifyAsync(token);
-      const _id: string = payload._id;
-      let foundUser: UserDocument = await this.userService.findOne(_id);
+      const id: string = payload.id;
+      let foundUser: User = await this.userService.findOne(id);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
@@ -367,11 +366,10 @@ export class AuthService {
       const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
 
       // update password in db
-      this.userService.updateOne(_id, { password: hashedPassword });
+      await this.userService.updateOne(id, { password: hashedPassword });
 
       // revoking all logged in refresh tokens
-      const userId = new Types.ObjectId(_id);
-      await this.refreshTokenService.revokeAllForUser(userId);
+      await this.refreshTokenService.revokeAllForUser(id);
 
       return {
         message: 'Password reset was successful !',
@@ -383,7 +381,7 @@ export class AuthService {
 
   async sendOtp(email: string) {
     try {
-      let foundUser: UserDocument = await this.userService.findOne(email);
+      let foundUser: User = await this.userService.findOne(email);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
@@ -460,13 +458,13 @@ export class AuthService {
   // }
   async sendPasswordResetLink(email: string) {
     try {
-      let foundUser: UserDocument = await this.userService.findOne(email);
+      let foundUser: User = await this.userService.findOne(email);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
       }
 
-      const token = await this.jwtService.signAsync({ _id: foundUser._id });
+      const token = await this.jwtService.signAsync({ id: foundUser.id });
 
       //@TODO  to send mail with the reset link
       // sendOtpEmail(email, otp);
@@ -484,10 +482,10 @@ export class AuthService {
     const { cookieValue, expiresAt, userId } =
       await this.refreshTokenService.validateAndRotate(token);
 
-    const foundUser = await this.userService.findOne(userId.toString());
+    const foundUser = await this.userService.findOne(userId);
 
     const payload = {
-      _id: userId,
+      id: userId,
       role: foundUser.role,
     };
     const newAccessToken = await this.jwtService.signAsync(payload);
@@ -514,7 +512,7 @@ export class AuthService {
   }
 
   async getCurrentUser(userId: string): Promise<any> {
-    const user: UserDocument = await this.userService.findOne(userId);
+    const user: User = await this.userService.findOne(userId);
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -522,19 +520,15 @@ export class AuthService {
 
     // Return public user information (exclude password)
     return {
-      userId: user.userId,
-      name: user.name,
-      pfp: user.pfp,
+      id: user.id,
+      username: user.username,
+      full_name: user.full_name,
       email: user.email,
-      phone: user.phone,
-      phone2: user.phone2,
-      address: user.address,
-      district:user.district,
-      city: user.city,
-      deliver_instructions: user.deliver_instructions,
+      bio: user.bio,
       role: user.role,
-      cart: user.cart,
-      wishlist: user.wishlist,
+      profile_pic_id: user.profile_pic_id,
+      cover_pic_id: user.cover_pic_id,
+      created_at: user.created_at,
     };
   }
 }

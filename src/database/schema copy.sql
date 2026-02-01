@@ -1,10 +1,12 @@
+-- PostgreSQL Schema for Social Media Application
+-- Generated from ER Diagram
 
 -- Enable UUID extension for generating unique identifiers
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-
+-- ============================================
 -- ENUM TYPES
-
+-- ============================================
 
 CREATE TYPE user_role AS ENUM ('user', 'admin', 'moderator');
 CREATE TYPE post_type AS ENUM ('text', 'image', 'video', 'share');
@@ -16,7 +18,9 @@ CREATE TYPE notification_type AS ENUM ('like', 'comment', 'follow', 'friend_requ
 CREATE TYPE notification_ref_type AS ENUM ('post', 'comment', 'user', 'group');
 CREATE TYPE image_type AS ENUM ('profile', 'cover', 'post', 'comment', 'group_cover');
 
-
+-- ============================================
+-- CORE TABLES
+-- ============================================
 
 -- User Table
 CREATE TABLE users (
@@ -37,9 +41,9 @@ CREATE TABLE users (
 CREATE INDEX idx_user_username ON users(username);
 CREATE INDEX idx_user_email ON users(email);
 
-
+-- ============================================
 -- MEDIA TABLES
-
+-- ============================================
 
 -- Image Table
 CREATE TABLE image (
@@ -54,9 +58,9 @@ CREATE TABLE image (
 CREATE INDEX idx_image_post_id ON image(post_id);
 CREATE INDEX idx_image_user_id ON image(user_id);
 
-
+-- ============================================
 -- SOCIAL TABLES
-
+-- ============================================
 
 -- Group Table
 CREATE TABLE groups (
@@ -86,9 +90,9 @@ CREATE TABLE notification (
 CREATE INDEX idx_notification_user_id ON notification(user_id);
 CREATE INDEX idx_notification_is_read ON notification(is_read);
 
-
+-- ============================================
 -- CONTENT TABLES
-
+-- ============================================
 
 -- Post Table
 CREATE TABLE post (
@@ -124,9 +128,9 @@ CREATE INDEX idx_comment_post_id ON comment(post_id);
 CREATE INDEX idx_comment_user_id ON comment(user_id);
 CREATE INDEX idx_comment_parent_id ON comment(parent_id);
 
-
+-- ============================================
 -- USER RELATIONSHIP TABLES (Many-to-Many)
-
+-- ============================================
 
 -- Block Table (User blocks User)
 CREATE TABLE block (
@@ -166,9 +170,9 @@ CREATE TABLE friend (
 CREATE INDEX idx_friend_user_id ON friend(user_id);
 CREATE INDEX idx_friend_friend_id ON friend(friend_id);
 
-
+-- ============================================
 -- GROUP MEMBERSHIP TABLE
-
+-- ============================================
 
 -- Membership Table (User belongs to Group with role)
 CREATE TABLE membership (
@@ -184,9 +188,9 @@ CREATE TABLE membership (
 CREATE INDEX idx_membership_user_id ON membership(user_id);
 CREATE INDEX idx_membership_group_id ON membership(group_id);
 
-
+-- ============================================
 -- LIKE TABLES
-
+-- ============================================
 
 -- Post Likes Table
 CREATE TABLE likes_post (
@@ -212,9 +216,9 @@ CREATE TABLE likes_comment (
 CREATE INDEX idx_likes_comment_user_id ON likes_comment(user_id);
 CREATE INDEX idx_likes_comment_comment_id ON likes_comment(comment_id);
 
-
+-- ============================================
 -- SHARE TABLE
-
+-- ============================================
 
 -- Shares Table (User shares Post)
 CREATE TABLE shares (
@@ -228,9 +232,9 @@ CREATE TABLE shares (
 CREATE INDEX idx_shares_user_id ON shares(user_id);
 CREATE INDEX idx_shares_post_id ON shares(post_id);
 
-
+-- ============================================
 -- AUTH TABLES
-
+-- ============================================
 
 -- Refresh Token Table
 CREATE TABLE refresh_token (
@@ -242,10 +246,13 @@ CREATE TABLE refresh_token (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX idx_refresh_token_user_id ON refresh_token(user_id);
+CREATE INDEX idx_refresh_token_expires_at ON refresh_token(expires_at);
+CREATE INDEX idx_refresh_token_revoked ON refresh_token(revoked);
 
-
+-- ============================================
 -- TAG TABLES
-
+-- ============================================
 
 -- Post Tags User Table
 CREATE TABLE tags_post (
@@ -256,7 +263,8 @@ CREATE TABLE tags_post (
     UNIQUE(post_id, user_id)
 );
 
-
+CREATE INDEX idx_tags_post_post_id ON tags_post(post_id);
+CREATE INDEX idx_tags_post_user_id ON tags_post(user_id);
 
 -- Image Tags User Table
 CREATE TABLE tags_image (
@@ -267,10 +275,12 @@ CREATE TABLE tags_image (
     UNIQUE(image_id, user_id)
 );
 
+CREATE INDEX idx_tags_image_image_id ON tags_image(image_id);
+CREATE INDEX idx_tags_image_user_id ON tags_image(user_id);
 
-
+-- ============================================
 -- FOREIGN KEY CONSTRAINTS
-
+-- ============================================
 
 -- User foreign keys (profile_pic_id and cover_pic_id reference image)
 ALTER TABLE users
@@ -349,4 +359,40 @@ ALTER TABLE tags_post
 ALTER TABLE tags_image
     ADD CONSTRAINT fk_tags_image_image FOREIGN KEY (image_id) REFERENCES image(id) ON DELETE CASCADE,
     ADD CONSTRAINT fk_tags_image_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- Refresh token foreign keys
+ALTER TABLE refresh_token
+    ADD CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- ============================================
+-- TRIGGER FOR UPDATED_AT
+-- ============================================
+
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply trigger to tables with updated_at column
+CREATE TRIGGER update_user_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_group_updated_at BEFORE UPDATE ON groups
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_post_updated_at BEFORE UPDATE ON post
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_comment_updated_at BEFORE UPDATE ON comment
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_friend_updated_at BEFORE UPDATE ON friend
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_membership_updated_at BEFORE UPDATE ON membership
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

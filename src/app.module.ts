@@ -14,23 +14,34 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 
+import { PostModule } from './post/post.module';
+import { GroupModule } from './group/group.module';
+import { MediaModule } from './media/media.module';
+import { RelationshipModule } from './relationship/relationship.module';
+import { NotificationModule } from './notification/notification.module';
+
 @Module({
   imports: [
     DatabaseModule,
     UserModule,
     AuthModule,
-   
+    PostModule,
+    GroupModule,
+    MediaModule,
+    RelationshipModule,
+    NotificationModule,
+
     CaslModule,
     HttpModule,
-    ConfigModule.forRoot({isGlobal:true}),
+    ConfigModule.forRoot({ isGlobal: true }),
 
-  
-  
-   
+
+
+
     CloudinaryModule,
-   
+
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

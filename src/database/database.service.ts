@@ -18,6 +18,7 @@ export interface ConnectionStatus {
 
 @Injectable()
 export class DatabaseService extends Kysely<DB> implements OnModuleInit, OnModuleDestroy {
+  
   private pool: Pool;
   private readonly logger = new Logger(DatabaseService.name);
   private isConnected = false;

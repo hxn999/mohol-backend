@@ -32,13 +32,13 @@ export class UserController {
   // @UseGuards(AuthGuard, AbilitiesGuard)
   // @CheckAbility(Action.Read, 'all')
   async findAll() {
-    console.log("hi")
+  
     return this.userService.findAll();
   }
 
   @Get('single/:id')
   async findOne(@Param('id') id: string) {
-    console.log('hiiii');
+  
     return this.userService.findOne(id);
   }
 

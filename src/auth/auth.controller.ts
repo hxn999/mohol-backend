@@ -41,20 +41,14 @@ export class AuthController {
     return this.authService.login(identifier, credentials.password, res);
   }
 
-  // @Post('login-google')
-  // async loginByGoogle(@Res() res: Response, @Query('code') code: string) {
-  //   return this.authService.loginByGoogle(res, code);
-  // }
+
 
   @Post('register')
   async register(@Res() res: Response, @Body() createUserDto: CreateUserDto) {
     return this.authService.register(createUserDto, res);
   }
 
-  // @Post('register-google')
-  // async registerByGoogle(@Res() res: Response, @Query('code') code: string) {
-  //   return this.authService.registerByGoogle(res, code);
-  // }
+
 
   @Delete('logout')
   async logOut(@Req() req: Request, @Res() res: Response) {

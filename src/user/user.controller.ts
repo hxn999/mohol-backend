@@ -29,26 +29,24 @@ export class UserController {
   constructor(private userService: UserService) {}
 
   @Get('')
-  // @UseGuards(AuthGuard, AbilitiesGuard)
-  // @CheckAbility(Action.Read, 'all')
   async findAll() {
-  
     return this.userService.findAll();
   }
 
+  @Post('find')
+  async find(@Body() body: FindQueryDto) {
+    return this.userService.findMany(body);
+  }
+
+
   @Get('single/:id')
   async findOne(@Param('id') id: string) {
-  
     return this.userService.findOne(id);
   }
 
   
 
 
-  @Post('find')
-  async find(@Body() body: FindQueryDto) {
-    return this.userService.findMany(body);
-  }
 
   // @UseGuards(AuthGuard, AbilitiesGuard)
   @Patch('update')

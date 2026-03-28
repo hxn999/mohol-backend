@@ -20,13 +20,13 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { generateRandomPassword } from 'src/lib/randomPassGen';
-import { sendOtpEmail } from 'src/lib/mail';
+import { sendOtpEmail, sendPasswordResetEmail } from 'src/lib/mail';
 import { RequestWithAuth } from './auth.controller';
 import { Action } from 'src/casl/actionEnum';
 
 export type UserPayload = {
   role: UserRole;
-  id: string;
+  id: number;
 };
 
 type GoogleUser = {
@@ -41,7 +41,7 @@ type GoogleUser = {
 };
 
 type ResetPayload = {
-  id: string;
+  id: number;
 };
 
 @Injectable()
@@ -56,9 +56,9 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async login(email: string, password: string, res: Response): Promise<any> {
+  async login(identifier: string, password: string, res: Response): Promise<any> {
     try {
-      let foundUser: User = await this.userService.findOne(email);
+      let foundUser: User = await this.userService.findOne(identifier);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
@@ -178,15 +178,15 @@ export class AuthService {
       };
 
       const accessToken = await this.jwtService.signAsync(payload);
-      // const { cookieValue, expiresAt } =
-      //   await this.refreshTokenService.createToken(createdUser.id);
+      const { cookieValue, expiresAt } =
+        await this.refreshTokenService.createToken(createdUser.id);
 
-      // res.cookie('refresh_token', cookieValue, {
-      //   httpOnly: true,
-      //   secure: true,
-      //   sameSite: 'lax',
-      //   expires: expiresAt,
-      // });
+      res.cookie('refresh_token', cookieValue, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        expires: expiresAt,
+      });
 
       // Set accessToken cookie with 15 minutes expiry
       const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -354,9 +354,10 @@ export class AuthService {
 
   async resetPassword(token: string, newPassword: string): Promise<any> {
     try {
-      const payload: ResetPayload = await this.jwtService.verifyAsync(token);
-      const id: string = payload.id;
-      let foundUser: User = await this.userService.findOne(id);
+      // Validate reset token using refresh token logic (one-time use)
+      const { userId } = await this.refreshTokenService.validateOneTimeToken(token);
+      
+      let foundUser: User = await this.userService.findOne(userId);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
@@ -366,16 +367,42 @@ export class AuthService {
       const hashedPassword = await bcrypt.hash(newPassword, saltOrRounds);
 
       // update password in db
-      await this.userService.updateOne(id, { password: hashedPassword });
+      await this.userService.updateOne(foundUser.id, { password: hashedPassword });
 
-      // revoking all logged in refresh tokens
-      await this.refreshTokenService.revokeAllForUser(id);
+      // revoking all logged in refresh tokens since password changed
+      await this.refreshTokenService.revokeAllForUser(foundUser.id);
 
       return {
         message: 'Password reset was successful !',
       };
     } catch (error) {
       throw new BadRequestException(error.message);
+    }
+  }
+
+  async forgotPassword(identifier: string) {
+    try {
+      const user = await this.userService.findOne(identifier);
+      if (!user) {
+        // We don't want to leak if a user exists or not, but usually for reset we can say "if exists, email sent"
+        return { message: 'If an account exists, a reset link has been sent.' };
+      }
+
+      // Generate a reset token valid for 5 minutes
+      const { cookieValue } = await this.refreshTokenService.createToken(
+        user.id,
+        0,
+        5,
+      );
+
+      const resetLink = `${this.configService.get('FRONTEND_URL') || 'http://localhost:3000'}/reset-password?token=${cookieValue}`;
+
+      await sendPasswordResetEmail(user.email, resetLink);
+
+      return { message: 'Reset link sent successfully' };
+    } catch (error) {
+      // return success anyway to prevent email enumeration
+      return { message: 'If an account exists, a reset link has been sent.' };
     }
   }
 

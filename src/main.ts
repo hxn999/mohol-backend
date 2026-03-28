@@ -6,6 +6,11 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 // somewhere in your initialization file
 
+// main.ts
+import { apiReference } from '@scalar/nestjs-api-reference';
+
+
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -29,7 +34,9 @@ async function bootstrap() {
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api', app, document, { swaggerUiEnabled: false });
+
+app.use('/docs', apiReference({ spec: { content: document } }));
 
   app.use(cookieParser());
   await app.listen(3005);

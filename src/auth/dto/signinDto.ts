@@ -2,36 +2,32 @@ import {
   IsNotEmpty,
   IsString,
   IsEmail,
-  MinLength,
   IsOptional,
-  ValidateIf,
-  IsPhoneNumber
-
 } from 'class-validator';
-import { IsEmailOrPhone } from 'src/user/decorators/emailOrPhone';
-import { NormalizeBDPhone } from '../decorators/normalizePhoneBd';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SigninDto {
-
-  // email: string (required, trim)
+  @ApiPropertyOptional({
+    description: 'Email address of the user',
+    example: 'user@example.com',
+  })
   @IsEmail({}, { message: 'Invalid email format.' })
   @IsOptional()
   email?: string;
 
-  // phone: string (optional, trim)
-  @NormalizeBDPhone()
+  @ApiPropertyOptional({
+    description: 'Username of the user',
+    example: 'johndoe',
+  })
+  @IsString({ message: 'Username must be a string.' })
   @IsOptional()
-  @IsString({ message: 'Phone must be a string.' })
-  @IsPhoneNumber('BD')
-  phone?: string;
+  username?: string;
 
-  // password: string (required) - Enforcing complexity: min 8, uppercase, number, special char
-
-  @IsEmailOrPhone()
+  @ApiProperty({
+    description: 'Password for the account',
+    example: 'P@ssword123',
+  })
   @IsNotEmpty({ message: 'Password is required.' })
   @IsString({ message: 'Password must be a string.' })
   password: string;
-
-
-
 }

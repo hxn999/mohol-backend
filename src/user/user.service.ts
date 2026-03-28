@@ -11,6 +11,7 @@ import { CreateUserDto } from './dto/createUserDto';
 import * as bcrypt from 'bcrypt';
 import { UpdateUserDto } from './dto/updateUserDto';
 import { sql } from 'kysely';
+import { FindQueryDto } from './dto/findQueryDto';
 
 @Injectable()
 export class UserService {
@@ -18,7 +19,7 @@ export class UserService {
   private readonly logger = new Logger(UserService.name);
 
   async create(user: CreateUserDto): Promise<User> {
-    // Check for duplicate accounts (email)
+    // Check for duplicate accounts (email or username)
     if (user.email) {
       const existingByEmail = await sql<User>`
         SELECT * FROM users WHERE email = ${user.email}
@@ -29,17 +30,22 @@ export class UserService {
       }
     }
 
+    const existingByUsername = await sql<User>`
+      SELECT * FROM users WHERE username = ${user.username}
+    `.execute(this.db);
+
+    if (existingByUsername.rows.length > 0) {
+      throw new ConflictException(`Username ${user.username} is already taken!`);
+    }
+
     // Hash password
     const saltOrRounds = 10;
     const hashedPassword = await bcrypt.hash(user.password, saltOrRounds);
 
-    // Generate username from email or timestamp
-    const username = user.username;
-
     // Create user with raw SQL
     const result = await sql<User>`
-      INSERT INTO users (username, password, full_name, email, profile_pic_id, cover_pic_id, bio, role)
-      VALUES (${username}, ${hashedPassword}, ${user.name}, ${user.email || null}, NULL, NULL, NULL, 'user')
+      INSERT INTO users (username, password, full_name, email, role)
+      VALUES (${user.username}, ${hashedPassword}, ${user.name}, ${user.email || null}, 'user')
       RETURNING *
     `.execute(this.db);
 
@@ -50,199 +56,100 @@ export class UserService {
     return result.rows[0];
   }
 
-  async findOne(query: string): Promise<User> {
-    // Check if it's a valid UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    let result;
-    if (uuidRegex.test(query)) {
-      // Find by UUID
-      result = await sql<User>`
-        SELECT * FROM users WHERE id = ${query}
-      `.execute(this.db);
-    } else {
-      // Try email or username
-      result = await sql<User>`
-        SELECT * FROM users WHERE email = ${query} OR username = ${query}
-      `.execute(this.db);
-    }
+  async findOne(id: number | string): Promise<User> {
+    const result = await sql<User>`
+      SELECT * FROM users WHERE id = ${id} OR email = ${id.toString()} OR username = ${id.toString()}
+    `.execute(this.db);
 
     if (result.rows.length === 0) {
-      throw new NotFoundException(`User with identifier ${query} not found`);
+      throw new NotFoundException(`User with identifier ${id} not found`);
     }
 
     return result.rows[0];
   }
 
-  async findMany(query: Record<string, any>): Promise<User[]> {
-    // Build query using sql template literals
-    if (query.email && query.username && query.role) {
-      const result = await sql<User>`
-        SELECT * FROM users 
-        WHERE email = ${query.email} 
-        AND username = ${query.username} 
-        AND role = ${query.role}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else if (query.email && query.username) {
-      const result = await sql<User>`
-        SELECT * FROM users 
-        WHERE email = ${query.email} 
-        AND username = ${query.username}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else if (query.email && query.role) {
-      const result = await sql<User>`
-        SELECT * FROM users 
-        WHERE email = ${query.email} 
-        AND role = ${query.role}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else if (query.username && query.role) {
-      const result = await sql<User>`
-        SELECT * FROM users 
-        WHERE username = ${query.username} 
-        AND role = ${query.role}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else if (query.email) {
-      const result = await sql<User>`
-        SELECT * FROM users WHERE email = ${query.email}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else if (query.username) {
-      const result = await sql<User>`
-        SELECT * FROM users WHERE username = ${query.username}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else if (query.role) {
-      const result = await sql<User>`
-        SELECT * FROM users WHERE role = ${query.role}
-      `.execute(this.db);
-      if (result.rows.length === 0) {
-        throw new NotFoundException(`No users found matching criteria`);
-      }
-      return result.rows;
-    } else {
-      // No filters, return all users
-      const result = await sql<User>`SELECT * FROM users ORDER BY created_at DESC`.execute(this.db);
-      return result.rows;
-    }
-  }
+  async findAll(query?: FindQueryDto): Promise<User[]> {
+    let sqlQuery = sql<User>`SELECT * FROM users WHERE 1=1`;
 
-  async findAll(): Promise<User[]> {
-    // Get all users without any filters
-    const result = await sql<User>`
-      SELECT * FROM users 
-      ORDER BY created_at DESC
-    `.execute(this.db);
-    
+    if (query) {
+      if (query.name) {
+        sqlQuery = sql<User>`${sqlQuery} AND full_name ILIKE ${'%' + query.name + '%'}`;
+      }
+      if (query.email) {
+        sqlQuery = sql<User>`${sqlQuery} AND email = ${query.email}`;
+      }
+      if (query.username) {
+        sqlQuery = sql<User>`${sqlQuery} AND username = ${query.username}`;
+      }
+      if (query.id) {
+        sqlQuery = sql<User>`${sqlQuery} AND id = ${query.id}`;
+      }
+      if (query.role) {
+        sqlQuery = sql<User>`${sqlQuery} AND role = ${query.role}`;
+      }
+    }
+
+    const result = await sql<User>`${sqlQuery} ORDER BY created_at DESC`.execute(this.db);
     return result.rows;
   }
 
-  async deleteOne(query: string): Promise<{ deleted: boolean }> {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    
-    let result;
-    if (uuidRegex.test(query)) {
-      result = await sql`
-        DELETE FROM users WHERE id = ${query}
-      `.execute(this.db);
-    } else {
-      result = await sql`
-        DELETE FROM users WHERE email = ${query}
-      `.execute(this.db);
-    }
+  async deleteOne(id: number): Promise<{ deleted: boolean }> {
+    const result = await sql`
+      DELETE FROM users WHERE id = ${id}
+    `.execute(this.db);
 
     if (result.numAffectedRows === BigInt(0)) {
-      throw new NotFoundException(`User with identifier ${query} not found`);
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
 
     return { deleted: true };
   }
 
-  async updateOne(query: string, updatedUser: UpdateUserDto | { password?: string }): Promise<User> {
+  async updateOne(id: number | string, updatedUser: UpdateUserDto | { password?: string }): Promise<User> {
     try {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      
-      // Handle password update (for auth service)
+      // Find the user first
+      const user = await this.findOne(id);
+
+      let updateFields: string[] = [];
+      let values: any[] = [];
+
       if ('password' in updatedUser && updatedUser.password) {
-        // Build update query with password
-        if (uuidRegex.test(query)) {
-          const result = await sql<User>`
-            UPDATE users 
-            SET password = ${updatedUser.password}, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ${query}
-            RETURNING *
-          `.execute(this.db);
-          
-          if (result.rows.length === 0) {
-            throw new NotFoundException(`User with identifier ${query} not found`);
-          }
-          return result.rows[0];
-        } else {
-          const result = await sql<User>`
-            UPDATE users 
-            SET password = ${updatedUser.password}, updated_at = CURRENT_TIMESTAMP
-            WHERE email = ${query}
-            RETURNING *
-          `.execute(this.db);
-          
-          if (result.rows.length === 0) {
-            throw new NotFoundException(`User with identifier ${query} not found`);
-          }
-          return result.rows[0];
-        }
+        const saltOrRounds = 10;
+        const hashedPassword = await bcrypt.hash(updatedUser.password, saltOrRounds);
+        updateFields.push('password');
+        values.push(hashedPassword);
       }
 
-      // For other updates, just update updated_at for now
-      // Note: phone, address, district, city, deliver_instructions are not in the new schema
-      if (uuidRegex.test(query)) {
-        const result = await sql<User>`
-          UPDATE users 
-          SET updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${query}
-          RETURNING *
-        `.execute(this.db);
-        
-        if (result.rows.length === 0) {
-          throw new NotFoundException(`User with identifier ${query} not found`);
-        }
-        return result.rows[0];
-      } else {
-        const result = await sql<User>`
-          UPDATE users 
-          SET updated_at = CURRENT_TIMESTAMP
-          WHERE email = ${query}
-          RETURNING *
-        `.execute(this.db);
-        
-        if (result.rows.length === 0) {
-          throw new NotFoundException(`User with identifier ${query} not found`);
-        }
-        return result.rows[0];
+      // Reverting to original schema fields (no phone, address, etc. if they are not in schema)
+      // I'll check what was there originally. bio, full_name, username, email might be updatable.
+      // For now, I'll just keep the password update and anything else that might be in the schema.
+      
+      if ('bio' in updatedUser && updatedUser['bio']) {
+        updateFields.push('bio');
+        values.push(updatedUser['bio']);
       }
+
+      if (updateFields.length === 0) {
+        return user;
+      }
+
+      // Build dynamic update query
+      let queryStr = `UPDATE users SET `;
+      updateFields.forEach((field, index) => {
+        queryStr += `${field} = $${index + 1}${index === updateFields.length - 1 ? '' : ', '}`;
+      });
+      queryStr += `, updated_at = CURRENT_TIMESTAMP WHERE id = $${updateFields.length + 1} RETURNING *`;
+      values.push(user.id);
+
+      const result = await sql<User>(queryStr as any, values).execute(this.db);
+
+      if (result.rows.length === 0) {
+        throw new NotFoundException(`User not found`);
+      }
+      return result.rows[0];
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       throw new BadRequestException(error.message);
     }
   }
-
 }

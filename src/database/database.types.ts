@@ -21,13 +21,13 @@ export type FriendStatus = 'pending' | 'accepted' | 'rejected';
 // ============================================
 
 export interface UsersTable {
-  id: Generated<string>;
+  id: Generated<number>;
   username: string;
   password: string;
   full_name: string;
   email: string;
-  profile_pic_id: string | null;
-  cover_pic_id: string | null;
+  profile_pic_id: number | null;
+  cover_pic_id: number | null;
   bio: string | null;
   role: UserRole;
   created_at: Generated<Date>;
@@ -35,41 +35,41 @@ export interface UsersTable {
 }
 
 export interface ImageTable {
-  id: Generated<string>;
+  id: Generated<number>;
   url: string;
-  post_id: string | null;
-  user_id: string | null;
+  post_id: number | null;
+  user_id: number | null;
   type: ImageType;
   created_at: Generated<Date>;
 }
 
 export interface GroupsTable {
-  id: Generated<string>;
+  id: Generated<number>;
   title: string;
   description: string | null;
-  cover_img_id: string | null;
+  cover_img_id: number | null;
   visibility: GroupVisibility;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface NotificationTable {
-  id: Generated<string>;
-  user_id: string;
+  id: Generated<number>;
+  user_id: number;
   message: string;
   type: NotificationType;
-  ref_id: string | null;
+  ref_id: number | null;
   ref_type: NotificationRefType | null;
   is_read: Generated<boolean>;
   created_at: Generated<Date>;
 }
 
 export interface PostTable {
-  id: Generated<string>;
+  id: Generated<number>;
   body: string | null;
-  user_id: string;
-  group_id: string | null;
-  original_post_id: string | null;
+  user_id: number;
+  group_id: number | null;
+  original_post_id: number | null;
   type: PostType;
   visibility: PostVisibility;
   status: PostStatus;
@@ -78,85 +78,85 @@ export interface PostTable {
 }
 
 export interface CommentTable {
-  id: Generated<string>;
-  post_id: string;
-  user_id: string;
-  parent_id: string | null;
+  id: Generated<number>;
+  post_id: number;
+  user_id: number;
+  parent_id: number | null;
   comment: string;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface BlockTable {
-  id: Generated<string>;
-  blocker_id: string;
-  blocked_id: string;
+  id: Generated<number>;
+  blocker_id: number;
+  blocked_id: number;
   created_at: Generated<Date>;
 }
 
 export interface FollowTable {
-  id: Generated<string>;
-  follower_id: string;
-  following_id: string;
+  id: Generated<number>;
+  follower_id: number;
+  following_id: number;
   created_at: Generated<Date>;
 }
 
 export interface FriendTable {
-  id: Generated<string>;
-  user_id: string;
-  friend_id: string;
+  id: Generated<number>;
+  user_id: number;
+  friend_id: number;
   status: FriendStatus;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface MembershipTable {
-  id: Generated<string>;
-  user_id: string;
-  group_id: string;
+  id: Generated<number>;
+  user_id: number;
+  group_id: number;
   role: MembershipRole;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
 
 export interface LikesPostTable {
-  id: Generated<string>;
-  user_id: string;
-  post_id: string;
+  id: Generated<number>;
+  user_id: number;
+  post_id: number;
   created_at: Generated<Date>;
 }
 
 export interface LikesCommentTable {
-  id: Generated<string>;
-  user_id: string;
-  comment_id: string;
+  id: Generated<number>;
+  user_id: number;
+  comment_id: number;
   created_at: Generated<Date>;
 }
 
 export interface SharesTable {
-  id: Generated<string>;
-  user_id: string;
-  post_id: string;
+  id: Generated<number>;
+  user_id: number;
+  post_id: number;
   created_at: Generated<Date>;
 }
 
 export interface TagsPostTable {
-  id: Generated<string>;
-  post_id: string;
-  user_id: string;
+  id: Generated<number>;
+  post_id: number;
+  user_id: number;
   created_at: Generated<Date>;
 }
 
 export interface TagsImageTable {
-  id: Generated<string>;
-  image_id: string;
-  user_id: string;
+  id: Generated<number>;
+  image_id: number;
+  user_id: number;
   created_at: Generated<Date>;
 }
 
 export interface RefreshTokenTable {
-  id: Generated<string>;
-  user_id: string;
+  id: Generated<number>;
+  user_id: number;
   token_hash: string;
   expires_at: Date;
   revoked: Generated<boolean>;

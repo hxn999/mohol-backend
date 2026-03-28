@@ -40,6 +40,61 @@ export class PostService {
         return result.rows;
     }
 
+    async getRecommendations(userId: string): Promise<Post[]> {
+        const result = await sql<Post>`
+            WITH user_friends AS (
+                SELECT 
+                    CASE WHEN user_id = ${userId} THEN friend_id ELSE user_id END AS friend_id,
+                    created_at
+                FROM friend
+                WHERE (user_id = ${userId} OR friend_id = ${userId}) 
+                  AND status = 'accepted'
+            ),
+            user_groups AS (
+                SELECT group_id
+                FROM membership
+                WHERE user_id = ${userId}
+            ),
+            user_interactions AS (
+                SELECT interacted_user_id, count(*) AS interaction_score
+                FROM (
+                    SELECT p.user_id AS interacted_user_id FROM likes_post lp JOIN post p ON lp.post_id = p.id WHERE lp.user_id = ${userId}
+                    UNION ALL
+                    SELECT p.user_id AS interacted_user_id FROM comment c JOIN post p ON c.post_id = p.id WHERE c.user_id = ${userId}
+                    UNION ALL
+                    SELECT p.user_id AS interacted_user_id FROM shares s JOIN post p ON s.post_id = p.id WHERE s.user_id = ${userId}
+                ) interactions
+                GROUP BY interacted_user_id
+            )
+            SELECT p.*,
+                (
+                    -- New Friend Boost (within 7 days)
+                    (CASE WHEN uf.friend_id IS NOT NULL AND uf.created_at > (CURRENT_TIMESTAMP - INTERVAL '7 days') THEN 50 ELSE 0 END) +
+                    -- Friend Boost
+                    (CASE WHEN uf.friend_id IS NOT NULL THEN 30 ELSE 0 END) +
+                    -- Interaction Boost
+                    (COALESCE(ui.interaction_score, 0) * 5) +
+                    -- Recency Boost (within 1 day)
+                    (CASE WHEN p.created_at > (CURRENT_TIMESTAMP - INTERVAL '1 day') THEN 20 ELSE 0 END)
+                ) AS recommendation_score
+            FROM post p
+            LEFT JOIN user_friends uf ON p.user_id = uf.friend_id
+            LEFT JOIN user_interactions ui ON p.user_id = ui.interacted_user_id
+            WHERE 
+                p.status = 'active'
+                AND (
+                    p.user_id = ${userId}
+                    OR p.visibility = 'public'
+                    OR (p.visibility = 'friends_only' AND uf.friend_id IS NOT NULL)
+                    OR (p.visibility = 'group_only' AND p.group_id IN (SELECT group_id FROM user_groups))
+                )
+            ORDER BY recommendation_score DESC, p.created_at DESC
+            LIMIT 50
+        `.execute(this.db);
+
+        return result.rows;
+    }
+
     async findOne(id: string): Promise<Post> {
         const result = await sql<Post>`
       SELECT * FROM post WHERE id = ${id}

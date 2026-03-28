@@ -23,6 +23,13 @@ export class PostController {
         return this.postService.findAll();
     }
 
+    @Get('recommendations/:userId')
+    @ApiOperation({ summary: 'Get recommended posts for a user' })
+    @ApiParam({ name: 'userId', description: 'User ID' })
+    getRecommendations(@Param('userId', ParseUUIDPipe) userId: string) {
+        return this.postService.getRecommendations(userId);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get a post by ID' })
     findOne(@Param('id', ParseUUIDPipe) id: string) {

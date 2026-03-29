@@ -10,6 +10,10 @@ CREATE TYPE notification_type AS ENUM ('like', 'comment', 'follow', 'friend_requ
 CREATE TYPE notification_ref_type AS ENUM ('post', 'comment', 'user', 'group');
 CREATE TYPE image_type AS ENUM ('profile', 'cover', 'post', 'comment', 'group_cover');
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 6631de55ce30c608348aa3bf0b09e92c6bbeace5
 
 -- User Table
 CREATE TABLE users (

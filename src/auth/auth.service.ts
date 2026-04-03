@@ -58,7 +58,7 @@ export class AuthService {
 
   async login(identifier: string, password: string, res: Response): Promise<any> {
     try {
-      let foundUser: User = await this.userService.findOne(identifier);
+      let foundUser: User = await this.userService.findOneEmail(identifier);
 
       if (!foundUser) {
         throw new NotFoundException('User account does not exists !');
@@ -81,15 +81,15 @@ export class AuthService {
       };
 
       const accessToken = await this.jwtService.signAsync(payload);
-      // const { cookieValue, expiresAt } =
-      //   await this.refreshTokenService.createToken(foundUser.id);
+      const { cookieValue, expiresAt } =
+        await this.refreshTokenService.createToken(foundUser.id);
 
-      // res.cookie('refresh_token', cookieValue, {
-      //   httpOnly: true,
-      //   secure: true,
-      //   sameSite: 'lax',
-      //   expires: expiresAt,
-      // });
+      res.cookie('refresh_token', cookieValue, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        expires: expiresAt,
+      });
 
       // Set accessToken cookie with 15 minutes expiry
       const accessTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes

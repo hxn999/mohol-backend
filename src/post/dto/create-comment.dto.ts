@@ -1,21 +1,25 @@
-import { IsString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateCommentDto {
     @ApiProperty()
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsNotEmpty()
-    post_id: string;
+    post_id: number;
 
     @ApiProperty()
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsNotEmpty()
-    user_id: string;
+    user_id: number;
 
     @ApiProperty({ required: false })
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsOptional()
-    parent_id?: string;
+    parent_id?: number;
 
     @ApiProperty()
     @IsString()

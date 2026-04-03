@@ -1,6 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsEnum } from 'class-validator';
 import { ImageType } from 'src/database/database.types';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateImageDto {
     @ApiProperty()
@@ -9,14 +10,16 @@ export class CreateImageDto {
     url: string;
 
     @ApiProperty({ required: false })
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsOptional()
-    post_id?: string;
+    post_id?: number;
 
     @ApiProperty({ required: false })
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsOptional()
-    user_id?: string;
+    user_id?: number;
 
     @ApiProperty({ enum: ['profile', 'cover', 'post', 'comment', 'group_cover'] })
     @IsEnum(['profile', 'cover', 'post', 'comment', 'group_cover'])

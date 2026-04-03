@@ -12,10 +12,16 @@ import * as bcrypt from 'bcrypt';
 import { UpdateUserDto } from './dto/updateUserDto';
 import { sql } from 'kysely';
 import { FindQueryDto } from './dto/findQueryDto';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { MediaService } from 'src/media/media.service';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly mediaService: MediaService,
+  ) {}
   private readonly logger = new Logger(UserService.name);
 
   async create(user: CreateUserDto): Promise<User> {
@@ -58,11 +64,24 @@ export class UserService {
 
   async findOne(id: number | string): Promise<User> {
     const result = await sql<User>`
-      SELECT * FROM users WHERE id = ${id} OR email = ${id.toString()} OR username = ${id.toString()}
+      SELECT * FROM users WHERE id = ${id} 
     `.execute(this.db);
 
     if (result.rows.length === 0) {
       throw new NotFoundException(`User with identifier ${id} not found`);
+    }
+
+    return result.rows[0];
+  }
+
+
+  async findOneEmail(email: string): Promise<User> {
+    const result = await sql<User>`
+      SELECT * FROM users WHERE email = ${email}
+    `.execute(this.db);
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException(`User with identifier ${email} not found`);
     }
 
     return result.rows[0];
@@ -105,43 +124,34 @@ export class UserService {
     return { deleted: true };
   }
 
-  async updateOne(id: number | string, updatedUser: UpdateUserDto | { password?: string }): Promise<User> {
+  async updateOne(id: number | string, updatedUser: UpdateUserDto): Promise<User> {
     try {
-      // Find the user first
       const user = await this.findOne(id);
+      let updateQuery = sql`UPDATE users SET updated_at = CURRENT_TIMESTAMP`;
 
-      let updateFields: string[] = [];
-      let values: any[] = [];
-
-      if ('password' in updatedUser && updatedUser.password) {
+      if (updatedUser.full_name !== undefined) {
+        updateQuery = sql`${updateQuery}, full_name = ${updatedUser.full_name}`;
+      }
+      if (updatedUser.bio !== undefined) {
+        updateQuery = sql`${updateQuery}, bio = ${updatedUser.bio}`;
+      }
+      if (updatedUser.profile_pic_id !== undefined) {
+        updateQuery = sql`${updateQuery}, profile_pic_id = ${updatedUser.profile_pic_id}`;
+      }
+      if (updatedUser.cover_pic_id !== undefined) {
+        updateQuery = sql`${updateQuery}, cover_pic_id = ${updatedUser.cover_pic_id}`;
+      }
+      if (updatedUser.password !== undefined) {
         const saltOrRounds = 10;
         const hashedPassword = await bcrypt.hash(updatedUser.password, saltOrRounds);
-        updateFields.push('password');
-        values.push(hashedPassword);
+        updateQuery = sql`${updateQuery}, password = ${hashedPassword}`;
       }
 
-      // Reverting to original schema fields (no phone, address, etc. if they are not in schema)
-      // I'll check what was there originally. bio, full_name, username, email might be updatable.
-      // For now, I'll just keep the password update and anything else that might be in the schema.
-      
-      if ('bio' in updatedUser && updatedUser['bio']) {
-        updateFields.push('bio');
-        values.push(updatedUser['bio']);
-      }
-
-      if (updateFields.length === 0) {
-        return user;
-      }
-
-      // Build dynamic update query
-      let queryStr = `UPDATE users SET `;
-      updateFields.forEach((field, index) => {
-        queryStr += `${field} = $${index + 1}${index === updateFields.length - 1 ? '' : ', '}`;
-      });
-      queryStr += `, updated_at = CURRENT_TIMESTAMP WHERE id = $${updateFields.length + 1} RETURNING *`;
-      values.push(user.id);
-
-      const result = await sql<User>(queryStr as any, values).execute(this.db);
+      const result = await sql<User>`
+        ${updateQuery}
+        WHERE id = ${user.id}
+        RETURNING *
+      `.execute(this.db);
 
       if (result.rows.length === 0) {
         throw new NotFoundException(`User not found`);
@@ -151,5 +161,25 @@ export class UserService {
       if (error instanceof NotFoundException) throw error;
       throw new BadRequestException(error.message);
     }
+  }
+
+  async uploadProfilePicture(userId: number, file: Express.Multer.File): Promise<User> {
+    const uploadResult = await this.cloudinaryService.uploadFile(file);
+    const image = await this.mediaService.create({
+      url: uploadResult.secure_url,
+      user_id: userId,
+      type: 'profile',
+    });
+    return this.updateOne(userId, { profile_pic_id: image.id });
+  }
+
+  async uploadCoverPicture(userId: number, file: Express.Multer.File): Promise<User> {
+    const uploadResult = await this.cloudinaryService.uploadFile(file);
+    const image = await this.mediaService.create({
+      url: uploadResult.secure_url,
+      user_id: userId,
+      type: 'cover',
+    });
+    return this.updateOne(userId, { cover_pic_id: image.id });
   }
 }

@@ -29,7 +29,7 @@ export class MediaService {
         return result.rows;
     }
 
-    async findOne(id: string): Promise<Image> {
+    async findOne(id: number): Promise<Image> {
         const result = await sql<Image>`
       SELECT * FROM image WHERE id = ${id}
     `.execute(this.db);
@@ -41,7 +41,7 @@ export class MediaService {
         return result.rows[0];
     }
 
-    async remove(id: string): Promise<{ deleted: boolean }> {
+    async remove(id: number): Promise<{ deleted: boolean }> {
         const result = await sql`
       DELETE FROM image WHERE id = ${id}
     `.execute(this.db);
@@ -55,7 +55,7 @@ export class MediaService {
 
     // === IMAGE TAGS ===
 
-    async tagUser(imageId: string, userId: string): Promise<TagsImage> {
+    async tagUser(imageId: number, userId: number): Promise<TagsImage> {
         const result = await sql<TagsImage>`
       INSERT INTO tags_image (image_id, user_id)
       VALUES (${imageId}, ${userId})
@@ -73,7 +73,7 @@ export class MediaService {
         return result.rows[0];
     }
 
-    async untagUser(imageId: string, userId: string): Promise<{ untagged: boolean }> {
+    async untagUser(imageId: number, userId: number): Promise<{ untagged: boolean }> {
         const result = await sql`
       DELETE FROM tags_image WHERE image_id = ${imageId} AND user_id = ${userId}
     `.execute(this.db);
@@ -81,7 +81,7 @@ export class MediaService {
         return { untagged: (result.numAffectedRows !== undefined && result.numAffectedRows > BigInt(0)) };
     }
 
-    async findTagsByImage(imageId: string): Promise<TagsImage[]> {
+    async findTagsByImage(imageId: number): Promise<TagsImage[]> {
         const result = await sql<TagsImage>`
       SELECT * FROM tags_image WHERE image_id = ${imageId}
     `.execute(this.db);

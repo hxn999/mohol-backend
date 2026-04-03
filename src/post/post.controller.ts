@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseInterceptors, UploadedFiles, Query } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { PostService } from './post.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -14,37 +15,75 @@ export class PostController {
     @Post()
     @ApiOperation({ summary: 'Create a new post' })
     create(@Body() createPostDto: CreatePostDto) {
+        // Automatically convert single string arrays if sent poorly from client formData (though standard POST json is fine)
+        const tagsValue: any = createPostDto.tags;
+        if (tagsValue && typeof tagsValue === 'string') {
+            try {
+                createPostDto.tags = JSON.parse(tagsValue);
+            } catch {
+                if (tagsValue !== '') createPostDto.tags = [(tagsValue as unknown) as number];
+            }
+        }
         return this.postService.create(createPostDto);
+    }
+
+    @Post('with-media')
+    @UseInterceptors(FilesInterceptor('files', 10))
+    @ApiOperation({ summary: 'Create a new post with multiple images' })
+    createWithMedia(
+        @Body() createPostDto: CreatePostDto,
+        @UploadedFiles() files: Express.Multer.File[]
+    ) {
+        // Format parsing for formData keys
+        if (createPostDto.user_id && typeof (createPostDto as any).user_id === 'string') createPostDto.user_id = Number(createPostDto.user_id);
+        if (createPostDto.group_id && typeof (createPostDto as any).group_id === 'string') createPostDto.group_id = Number(createPostDto.group_id);
+        
+        const tagsValue: any = createPostDto.tags;
+        if (tagsValue && typeof tagsValue === 'string') {
+            try {
+                createPostDto.tags = JSON.parse(tagsValue);
+            } catch {
+                if (tagsValue !== '') createPostDto.tags = [(tagsValue as unknown) as number];
+            }
+        }
+        return this.postService.createWithMedia(createPostDto, files);
     }
 
     @Get()
     @ApiOperation({ summary: 'Get all posts' })
-    findAll() {
-        return this.postService.findAll();
+    findAll(@Query('userId') userId?: string) {
+        return this.postService.findAll(userId ? Number(userId) : undefined);
+    }
+    
+    @Get('group/:groupId')
+    @ApiOperation({ summary: 'Get all posts for a group' })
+    @ApiParam({ name: 'groupId', description: 'Group ID' })
+    findByGroup(@Param('groupId', ParseIntPipe) groupId: number, @Query('userId') userId?: string) {
+        return this.postService.findByGroupId(groupId, userId ? Number(userId) : undefined);
     }
 
     @Get('recommendations/:userId')
     @ApiOperation({ summary: 'Get recommended posts for a user' })
     @ApiParam({ name: 'userId', description: 'User ID' })
-    getRecommendations(@Param('userId', ParseUUIDPipe) userId: string) {
+    getRecommendations(@Param('userId', ParseIntPipe) userId: number) {
         return this.postService.getRecommendations(userId);
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get a post by ID' })
-    findOne(@Param('id', ParseUUIDPipe) id: string) {
-        return this.postService.findOne(id);
+    findOne(@Param('id', ParseIntPipe) id: number, @Query('userId') userId?: string) {
+        return this.postService.findOne(id, userId ? Number(userId) : undefined);
     }
 
     @Patch(':id')
     @ApiOperation({ summary: 'Update a post' })
-    update(@Param('id', ParseUUIDPipe) id: string, @Body() updatePostDto: UpdatePostDto) {
+    update(@Param('id', ParseIntPipe) id: number, @Body() updatePostDto: UpdatePostDto) {
         return this.postService.update(id, updatePostDto);
     }
 
     @Delete(':id')
     @ApiOperation({ summary: 'Delete a post' })
-    remove(@Param('id', ParseUUIDPipe) id: string) {
+    remove(@Param('id', ParseIntPipe) id: number) {
         return this.postService.remove(id);
     }
 
@@ -58,14 +97,14 @@ export class PostController {
 
     @Get(':id/comments')
     @ApiOperation({ summary: 'Get all comments for a post' })
-    findCommentsByPost(@Param('id', ParseUUIDPipe) id: string) {
+    findCommentsByPost(@Param('id', ParseIntPipe) id: number) {
         return this.postService.findCommentsByPost(id);
     }
 
     @Patch('comments/:commentId')
     @ApiOperation({ summary: 'Update a comment' })
     updateComment(
-        @Param('commentId', ParseUUIDPipe) commentId: string,
+        @Param('commentId', ParseIntPipe) commentId: number,
         @Body() updateCommentDto: UpdateCommentDto
     ) {
         return this.postService.updateComment(commentId, updateCommentDto);
@@ -73,7 +112,7 @@ export class PostController {
 
     @Delete('comments/:commentId')
     @ApiOperation({ summary: 'Delete a comment' })
-    removeComment(@Param('commentId', ParseUUIDPipe) commentId: string) {
+    removeComment(@Param('commentId', ParseIntPipe) commentId: number) {
         return this.postService.removeComment(commentId);
     }
 
@@ -84,8 +123,8 @@ export class PostController {
     @ApiParam({ name: 'id', description: 'Post ID' })
     @ApiParam({ name: 'userId', description: 'User ID' })
     likePost(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Param('userId', ParseUUIDPipe) userId: string
+        @Param('id', ParseIntPipe) id: number,
+        @Param('userId', ParseIntPipe) userId: number
     ) {
         return this.postService.likePost(userId, id);
     }
@@ -93,8 +132,8 @@ export class PostController {
     @Delete(':id/like/:userId')
     @ApiOperation({ summary: 'Unlike a post' })
     unlikePost(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Param('userId', ParseUUIDPipe) userId: string
+        @Param('id', ParseIntPipe) id: number,
+        @Param('userId', ParseIntPipe) userId: number
     ) {
         return this.postService.unlikePost(userId, id);
     }
@@ -104,9 +143,10 @@ export class PostController {
     @Post(':id/share/:userId')
     @ApiOperation({ summary: 'Share a post' })
     sharePost(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Param('userId', ParseUUIDPipe) userId: string
+        @Param('id', ParseIntPipe) id: number,
+        @Param('userId', ParseIntPipe) userId: number,
+        @Body() bodyPayload?: { body: string }
     ) {
-        return this.postService.sharePost(userId, id);
+        return this.postService.sharePost(userId, id, bodyPayload?.body);
     }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, ParseIntPipe, Redirect } from '@nestjs/common';
 import { MediaService } from './media.service';
 import { CreateImageDto } from './dto/create-image.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -22,13 +22,22 @@ export class MediaController {
 
     @Get('images/:id')
     @ApiOperation({ summary: 'Get an image record by ID' })
-    findOne(@Param('id', ParseUUIDPipe) id: string) {
+    findOne(@Param('id', ParseIntPipe) id: number) {
         return this.mediaService.findOne(id);
+    }
+
+    /** Shorthand redirect: GET /media/image/:id → Cloudinary URL */
+    @Get('image/:id')
+    @Redirect()
+    @ApiOperation({ summary: 'Redirect to image URL by ID' })
+    async redirectToImage(@Param('id', ParseIntPipe) id: number) {
+        const image = await this.mediaService.findOne(id);
+        return { url: image.url, statusCode: 302 };
     }
 
     @Delete('images/:id')
     @ApiOperation({ summary: 'Delete an image record' })
-    remove(@Param('id', ParseUUIDPipe) id: string) {
+    remove(@Param('id', ParseIntPipe) id: number) {
         return this.mediaService.remove(id);
     }
 
@@ -37,8 +46,8 @@ export class MediaController {
     @Post('images/:id/tag/:userId')
     @ApiOperation({ summary: 'Tag a user in an image' })
     tagUser(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Param('userId', ParseUUIDPipe) userId: string
+        @Param('id', ParseIntPipe) id: number,
+        @Param('userId', ParseIntPipe) userId: number
     ) {
         return this.mediaService.tagUser(id, userId);
     }
@@ -46,15 +55,15 @@ export class MediaController {
     @Delete('images/:id/tag/:userId')
     @ApiOperation({ summary: 'Untag a user from an image' })
     untagUser(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Param('userId', ParseUUIDPipe) userId: string
+        @Param('id', ParseIntPipe) id: number,
+        @Param('userId', ParseIntPipe) userId: number
     ) {
         return this.mediaService.untagUser(id, userId);
     }
 
     @Get('images/:id/tags')
     @ApiOperation({ summary: 'Get all tags for an image' })
-    findTagsByImage(@Param('id', ParseUUIDPipe) id: string) {
+    findTagsByImage(@Param('id', ParseIntPipe) id: number) {
         return this.mediaService.findTagsByImage(id);
     }
 }

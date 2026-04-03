@@ -13,15 +13,9 @@ export class SigninDto {
   })
   @IsEmail({}, { message: 'Invalid email format.' })
   @IsOptional()
-  email?: string;
+  email: string;
 
-  @ApiPropertyOptional({
-    description: 'Username of the user',
-    example: 'johndoe',
-  })
-  @IsString({ message: 'Username must be a string.' })
-  @IsOptional()
-  username?: string;
+
 
   @ApiProperty({
     description: 'Password for the account',

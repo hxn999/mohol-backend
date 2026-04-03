@@ -10,13 +10,14 @@ export class NotificationService {
 
     async create(createNotificationDto: CreateNotificationDto): Promise<Notification> {
         const result = await sql<Notification>`
-      INSERT INTO notification (user_id, message, type, ref_id, ref_type)
+      INSERT INTO notification (user_id, message, type, ref_id, ref_type, actor_id)
       VALUES (
         ${createNotificationDto.user_id},
         ${createNotificationDto.message},
         ${createNotificationDto.type},
         ${createNotificationDto.ref_id || null},
-        ${createNotificationDto.ref_type || null}
+        ${createNotificationDto.ref_type || null},
+        ${createNotificationDto.actor_id || null}
       )
       RETURNING *
     `.execute(this.db);
@@ -28,14 +29,23 @@ export class NotificationService {
         return result.rows[0];
     }
 
-    async findAllByUser(userId: string): Promise<Notification[]> {
-        const result = await sql<Notification>`
-      SELECT * FROM notification WHERE user_id = ${userId} ORDER BY created_at DESC
-    `.execute(this.db);
+    async findAllByUser(userId: number): Promise<any[]> {
+        const result = await sql<any>`
+            SELECT 
+                n.*,
+                a.id as actor_id,
+                a.full_name as actor_name,
+                a.username as actor_username,
+                a.profile_pic_id as actor_pfp_id
+            FROM notification n
+            LEFT JOIN users a ON n.actor_id = a.id
+            WHERE n.user_id = ${userId}
+            ORDER BY n.created_at DESC
+        `.execute(this.db);
         return result.rows;
     }
 
-    async markAsRead(id: string): Promise<Notification> {
+    async markAsRead(id: number): Promise<Notification> {
         const result = await sql<Notification>`
       UPDATE notification SET is_read = TRUE WHERE id = ${id} RETURNING *
     `.execute(this.db);
@@ -47,7 +57,7 @@ export class NotificationService {
         return result.rows[0];
     }
 
-    async remove(id: string): Promise<{ deleted: boolean }> {
+    async remove(id: number): Promise<{ deleted: boolean }> {
         const result = await sql`
       DELETE FROM notification WHERE id = ${id}
     `.execute(this.db);

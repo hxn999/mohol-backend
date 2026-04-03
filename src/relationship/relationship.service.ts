@@ -2,36 +2,36 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { DatabaseService } from 'src/database/database.service';
 import { Block, Follow, Friend } from 'src/database/database.types';
 import { sql } from 'kysely';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationGateway } from 'src/notification/notification.gateway';
 
 @Injectable()
 export class RelationshipService {
-    constructor(private readonly db: DatabaseService) { }
+    constructor(
+        private readonly db: DatabaseService,
+        private readonly notificationService: NotificationService,
+        private readonly notificationGateway: NotificationGateway
+    ) { }
 
     // === BLOCK METHODS ===
 
-    async blockUser(blockerId: string, blockedId: string): Promise<Block> {
+    async blockUser(blockerId: number, blockedId: number): Promise<Block> {
         if (blockerId === blockedId) {
             throw new BadRequestException('You cannot block yourself');
         }
 
-        const result = await sql<Block>`
-      INSERT INTO block (blocker_id, blocked_id)
-      VALUES (${blockerId}, ${blockedId})
-      ON CONFLICT (blocker_id, blocked_id) DO NOTHING
-      RETURNING *
+        await sql`
+      CALL block_user(${blockerId}, ${blockedId})
     `.execute(this.db);
 
-        if (result.rows.length === 0) {
-            const existing = await sql<Block>`
-        SELECT * FROM block WHERE blocker_id = ${blockerId} AND blocked_id = ${blockedId}
-      `.execute(this.db);
-            return existing.rows[0];
-        }
+        const result = await sql<Block>`
+            SELECT * FROM block WHERE blocker_id = ${blockerId} AND blocked_id = ${blockedId}
+        `.execute(this.db);
 
         return result.rows[0];
     }
 
-    async unblockUser(blockerId: string, blockedId: string): Promise<{ unblocked: boolean }> {
+    async unblockUser(blockerId: number, blockedId: number): Promise<{ unblocked: boolean }> {
         const result = await sql`
       DELETE FROM block WHERE blocker_id = ${blockerId} AND blocked_id = ${blockedId}
     `.execute(this.db);
@@ -41,7 +41,7 @@ export class RelationshipService {
 
     // === FOLLOW METHODS ===
 
-    async followUser(followerId: string, followingId: string): Promise<Follow> {
+    async followUser(followerId: number, followingId: number): Promise<Follow> {
         if (followerId === followingId) {
             throw new BadRequestException('You cannot follow yourself');
         }
@@ -60,10 +60,20 @@ export class RelationshipService {
             return existing.rows[0];
         }
 
+        const notif = await this.notificationService.create({
+            user_id: followingId,
+            message: 'started following you.',
+            type: 'follow',
+            ref_id: followerId,
+            ref_type: 'user',
+            actor_id: followerId
+        });
+        this.notificationGateway.sendNotificationToUser(followingId, notif);
+
         return result.rows[0];
     }
 
-    async unfollowUser(followerId: string, followingId: string): Promise<{ unfollowed: boolean }> {
+    async unfollowUser(followerId: number, followingId: number): Promise<{ unfollowed: boolean }> {
         const result = await sql`
       DELETE FROM follow WHERE follower_id = ${followerId} AND following_id = ${followingId}
     `.execute(this.db);
@@ -73,45 +83,59 @@ export class RelationshipService {
 
     // === FRIEND METHODS ===
 
-    async sendFriendRequest(userId: string, friendId: string): Promise<Friend> {
+    async sendFriendRequest(userId: number, friendId: number): Promise<Friend> {
         if (userId === friendId) {
             throw new BadRequestException('You cannot friend yourself');
         }
 
-        const result = await sql<Friend>`
-      INSERT INTO friend (user_id, friend_id, status)
-      VALUES (${userId}, ${friendId}, 'pending')
-      ON CONFLICT (user_id, friend_id) DO NOTHING
-      RETURNING *
+        await sql`
+      CALL send_friend_request(${userId}, ${friendId})
     `.execute(this.db);
 
-        if (result.rows.length === 0) {
-            const existing = await sql<Friend>`
-        SELECT * FROM friend WHERE user_id = ${userId} AND friend_id = ${friendId}
-      `.execute(this.db);
-            return existing.rows[0];
-        }
+        const result = await sql<Friend>`
+            SELECT * FROM friend WHERE user_id = ${userId} AND friend_id = ${friendId}
+        `.execute(this.db);
+
+        const notif = await this.notificationService.create({
+            user_id: friendId,
+            message: 'sent you a friend request.',
+            type: 'friend_request',
+            ref_id: userId,
+            ref_type: 'user',
+            actor_id: userId
+        });
+        this.notificationGateway.sendNotificationToUser(friendId, notif);
 
         return result.rows[0];
     }
 
-    async updateFriendStatus(userId: string, friendId: string, status: 'accepted' | 'rejected'): Promise<Friend> {
-        const result = await sql<Friend>`
-      UPDATE friend 
-      SET status = ${status}, updated_at = CURRENT_TIMESTAMP
-      WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
-         OR (user_id = ${friendId} AND friend_id = ${userId})
-      RETURNING *
-    `.execute(this.db);
-
-        if (result.rows.length === 0) {
-            throw new NotFoundException('Friend relationship not found');
+    async updateFriendStatus(userId: number, friendId: number, status: 'accepted' | 'rejected'): Promise<Friend> {
+        if (status === 'accepted') {
+            await sql`
+                UPDATE friend 
+                SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+                WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
+                   OR (user_id = ${friendId} AND friend_id = ${userId})
+            `.execute(this.db);
+        } else {
+            await sql`
+                DELETE FROM friend 
+                WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
+                   OR (user_id = ${friendId} AND friend_id = ${userId})
+            `.execute(this.db);
+            return null as any; 
         }
+
+        const result = await sql<Friend>`
+            SELECT * FROM friend 
+            WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
+               OR (user_id = ${friendId} AND friend_id = ${userId})
+        `.execute(this.db);
 
         return result.rows[0];
     }
 
-    async removeFriend(userId: string, friendId: string): Promise<{ removed: boolean }> {
+    async removeFriend(userId: number, friendId: number): Promise<{ removed: boolean }> {
         const result = await sql`
       DELETE FROM friend 
       WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
@@ -119,5 +143,59 @@ export class RelationshipService {
     `.execute(this.db);
 
         return { removed: (result.numAffectedRows !== undefined && result.numAffectedRows > BigInt(0)) };
+    }
+
+    async getFriends(userId: number): Promise<any[]> {
+        const result = await sql<any>`
+            SELECT 
+                u.id, u.username, u.full_name, u.profile_pic_id,
+                f.status, f.created_at
+            FROM friend f
+            JOIN users u ON (f.user_id = u.id OR f.friend_id = u.id)
+            WHERE (f.user_id = ${userId} OR f.friend_id = ${userId})
+              AND u.id != ${userId}
+              AND f.status = 'accepted'
+        `.execute(this.db);
+        return result.rows;
+    }
+
+    async getPendingRequests(userId: number): Promise<any[]> {
+        const result = await sql<any>`
+            SELECT 
+                u.id, u.username, u.full_name, u.profile_pic_id,
+                f.status, f.created_at
+            FROM friend f
+            JOIN users u ON f.user_id = u.id
+            WHERE f.friend_id = ${userId}
+              AND f.status = 'pending'
+        `.execute(this.db);
+        return result.rows;
+    }
+
+    async getStatus(user1Id: number, user2Id: number): Promise<{ friend_status: string | null; is_following: boolean; is_blocked: boolean; action_required_by: number | null }> {
+        // Friend status
+        const friendQuery = await sql`
+            SELECT status, user_id, friend_id FROM friend 
+            WHERE (user_id = ${user1Id} AND friend_id = ${user2Id}) 
+               OR (user_id = ${user2Id} AND friend_id = ${user1Id})
+        `.execute(this.db);
+        const friendRow: any = friendQuery.rows[0];
+        const friend_status = friendRow ? friendRow.status : null;
+        // If pending, action_required_by is the one who didn't send the request
+        const action_required_by = (friend_status === 'pending') ? friendRow.friend_id : null;
+
+        // Follow status (is user1 following user2)
+        const followQuery = await sql`
+            SELECT 1 FROM follow WHERE follower_id = ${user1Id} AND following_id = ${user2Id}
+        `.execute(this.db);
+        const is_following = followQuery.rows.length > 0;
+
+        // Block status (is user1 blocked by user2 OR user1 blocked user2)
+        const blockQuery = await sql`
+            SELECT 1 FROM block WHERE (blocker_id = ${user1Id} AND blocked_id = ${user2Id}) OR (blocker_id = ${user2Id} AND blocked_id = ${user1Id})
+        `.execute(this.db);
+        const is_blocked = blockQuery.rows.length > 0;
+
+        return { friend_status, is_following, is_blocked, action_required_by };
     }
 }

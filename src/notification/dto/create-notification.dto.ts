@@ -1,12 +1,14 @@
-import { IsString, IsNotEmpty, IsOptional, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsEnum } from 'class-validator';
 import { NotificationType, NotificationRefType } from 'src/database/database.types';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateNotificationDto {
     @ApiProperty()
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsNotEmpty()
-    user_id: string;
+    user_id: number;
 
     @ApiProperty()
     @IsString()
@@ -19,12 +21,19 @@ export class CreateNotificationDto {
     type: NotificationType;
 
     @ApiProperty({ required: false })
-    @IsUUID()
+    @IsInt()
+    @Type(() => Number)
     @IsOptional()
-    ref_id?: string;
+    ref_id?: number;
 
     @ApiProperty({ enum: ['post', 'comment', 'user', 'group'], required: false })
     @IsEnum(['post', 'comment', 'user', 'group'])
     @IsOptional()
     ref_type?: NotificationRefType;
+
+    @ApiProperty({ required: false })
+    @IsInt()
+    @Type(() => Number)
+    @IsOptional()
+    actor_id?: number;
 }

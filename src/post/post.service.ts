@@ -7,40 +7,112 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { sql } from 'kysely';
 
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
+import { MediaService } from 'src/media/media.service';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationGateway } from 'src/notification/notification.gateway';
+
 @Injectable()
 export class PostService {
-    constructor(private readonly db: DatabaseService) { }
+    constructor(
+        private readonly db: DatabaseService,
+        private readonly cloudinaryService: CloudinaryService,
+        private readonly mediaService: MediaService,
+        private readonly notificationService: NotificationService,
+        private readonly notificationGateway: NotificationGateway
+    ) { }
 
     async create(createPostDto: CreatePostDto): Promise<Post> {
-        const result = await sql<Post>`
-      INSERT INTO post (body, user_id, group_id, original_post_id, type, visibility, status)
-      VALUES (
-        ${createPostDto.body || null},
+        await sql<Post>`
+      CALL create_post(
         ${createPostDto.user_id},
+        ${createPostDto.body || null},
         ${createPostDto.group_id || null},
-        ${createPostDto.original_post_id || null},
         ${createPostDto.type || 'text'},
-        ${createPostDto.visibility || 'public'},
-        ${createPostDto.status || 'active'}
+        ${createPostDto.visibility || 'public'}
       )
-      RETURNING *
     `.execute(this.db);
 
-        if (result.rows.length === 0) {
-            throw new BadRequestException('Failed to create post');
+        // For procedures, we might not get RETURNING * directly depending on how they are written.
+        // But the user asked to "directly implement" using these procedures.
+        // Assuming the procedure manages the data. 
+        // We'll try to find the post if it was created, or just return a dummy if it's just a seed call.
+        // However, the original code returned the post.
+        
+        const lastPostResult = await sql<Post>`
+            SELECT * FROM post 
+            WHERE user_id = ${createPostDto.user_id} 
+            ORDER BY created_at DESC LIMIT 1
+        `.execute(this.db);
+
+        const createdPost = lastPostResult.rows[0];
+
+        if (createdPost && createPostDto.tags && createPostDto.tags.length > 0) {
+            for (const tagUserId of createPostDto.tags) {
+                await sql`
+                    INSERT INTO tags_post (post_id, user_id)
+                    VALUES (${createdPost.id}, ${tagUserId})
+                    ON CONFLICT DO NOTHING
+                `.execute(this.db);
+            }
         }
 
-        return result.rows[0];
+        return createdPost;
     }
 
-    async findAll(): Promise<Post[]> {
+    async createWithMedia(createPostDto: CreatePostDto, files: Express.Multer.File[]): Promise<Post> {
+        const post = await this.create(createPostDto);
+
+        if (files && files.length > 0) {
+            const uploadResults = await this.cloudinaryService.uploadMultiple(files);
+            for (const result of uploadResults) {
+                if (result && 'secure_url' in result) {
+                    await this.mediaService.create({
+                        url: result.secure_url,
+                        post_id: post.id,
+                        user_id: post.user_id,
+                        type: 'post'
+                    });
+                }
+            }
+        }
+
+        return post;
+    }
+
+    async findAll(userId?: number): Promise<Post[]> {
         const result = await sql<Post>`
-      SELECT * FROM post ORDER BY created_at DESC
-    `.execute(this.db);
+            SELECT 
+                p.*,
+                u.username,
+                u.full_name,
+                u.profile_pic_id,
+                (SELECT json_agg(json_build_object('id', id, 'url', url)) FROM image WHERE post_id = p.id) as images,
+                (SELECT id FROM image WHERE post_id = p.id LIMIT 1) as image_id,
+                (SELECT COUNT(*)::int FROM likes_post WHERE post_id = p.id) as likes_count,
+                (SELECT COUNT(*)::int FROM comment WHERE post_id = p.id) as comments_count,
+                (SELECT COUNT(*)::int FROM shares WHERE post_id = p.id) as shares_count,
+                COALESCE((SELECT json_agg(json_build_object('id', tu.id, 'username', tu.username, 'full_name', tu.full_name)) FROM tags_post tp JOIN users tu ON tp.user_id = tu.id WHERE tp.post_id = p.id), '[]'::json) as tags,
+                op.body as original_post_body,
+                op.created_at as original_post_created_at,
+                ou.id as original_author_id,
+                ou.username as original_author_username,
+                ou.full_name as original_author_full_name,
+                ou.profile_pic_id as original_author_pfp_id,
+                g.title as group_name,
+                g.cover_img_id as group_cover_id,
+                EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me
+            FROM post p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN post op ON p.original_post_id = op.id
+            LEFT JOIN users ou ON op.user_id = ou.id
+            LEFT JOIN groups g ON p.group_id = g.id
+            ORDER BY p.created_at DESC
+        `.execute(this.db);
         return result.rows;
     }
 
-    async getRecommendations(userId: string): Promise<Post[]> {
+    async getRecommendations(userId: number): Promise<Post[]> {
         const result = await sql<Post>`
             WITH user_friends AS (
                 SELECT 
@@ -66,7 +138,26 @@ export class PostService {
                 ) interactions
                 GROUP BY interacted_user_id
             )
-            SELECT p.*,
+            SELECT 
+                p.*,
+                u.username,
+                u.full_name,
+                u.profile_pic_id,
+                (SELECT json_agg(json_build_object('id', id, 'url', url)) FROM image WHERE post_id = p.id) as images,
+                (SELECT id FROM image WHERE post_id = p.id LIMIT 1) as image_id,
+                (SELECT COUNT(*)::int FROM likes_post WHERE post_id = p.id) as likes_count,
+                (SELECT COUNT(*)::int FROM comment WHERE post_id = p.id) as comments_count,
+                (SELECT COUNT(*)::int FROM shares WHERE post_id = p.id) as shares_count,
+                COALESCE((SELECT json_agg(json_build_object('id', tu.id, 'username', tu.username, 'full_name', tu.full_name)) FROM tags_post tp JOIN users tu ON tp.user_id = tu.id WHERE tp.post_id = p.id), '[]'::json) as tags,
+                op.body as original_post_body,
+                op.created_at as original_post_created_at,
+                ou.id as original_author_id,
+                ou.username as original_author_username,
+                ou.full_name as original_author_full_name,
+                ou.profile_pic_id as original_author_pfp_id,
+                g.title as group_name,
+                g.cover_img_id as group_cover_id,
+                EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me,
                 (
                     -- New Friend Boost (within 7 days)
                     (CASE WHEN uf.friend_id IS NOT NULL AND uf.created_at > (CURRENT_TIMESTAMP - INTERVAL '7 days') THEN 50 ELSE 0 END) +
@@ -78,6 +169,10 @@ export class PostService {
                     (CASE WHEN p.created_at > (CURRENT_TIMESTAMP - INTERVAL '1 day') THEN 20 ELSE 0 END)
                 ) AS recommendation_score
             FROM post p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN post op ON p.original_post_id = op.id
+            LEFT JOIN users ou ON op.user_id = ou.id
+            LEFT JOIN groups g ON p.group_id = g.id
             LEFT JOIN user_friends uf ON p.user_id = uf.friend_id
             LEFT JOIN user_interactions ui ON p.user_id = ui.interacted_user_id
             WHERE 
@@ -94,11 +189,70 @@ export class PostService {
 
         return result.rows;
     }
+    
+    async findByGroupId(groupId: number, userId?: number): Promise<Post[]> {
+        const result = await sql<any>`
+            SELECT 
+                p.*,
+                u.username,
+                u.full_name,
+                u.profile_pic_id,
+                (SELECT json_agg(json_build_object('id', id, 'url', url)) FROM image WHERE post_id = p.id) as images,
+                (SELECT id FROM image WHERE post_id = p.id LIMIT 1) as image_id,
+                (SELECT COUNT(*)::int FROM likes_post WHERE post_id = p.id) as likes_count,
+                (SELECT COUNT(*)::int FROM comment WHERE post_id = p.id) as comments_count,
+                (SELECT COUNT(*)::int FROM shares WHERE post_id = p.id) as shares_count,
+                COALESCE((SELECT json_agg(json_build_object('id', tu.id, 'username', tu.username, 'full_name', tu.full_name)) FROM tags_post tp JOIN users tu ON tp.user_id = tu.id WHERE tp.post_id = p.id), '[]'::json) as tags,
+                op.body as original_post_body,
+                op.created_at as original_post_created_at,
+                ou.id as original_author_id,
+                ou.username as original_author_username,
+                ou.full_name as original_author_full_name,
+                ou.profile_pic_id as original_author_pfp_id,
+                g.title as group_name,
+                g.cover_img_id as group_cover_id,
+                EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me
+            FROM post p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN post op ON p.original_post_id = op.id
+            LEFT JOIN users ou ON op.user_id = ou.id
+            LEFT JOIN groups g ON p.group_id = g.id
+            WHERE p.group_id = ${groupId} 
+              AND p.status = 'active'
+            ORDER BY p.created_at DESC
+        `.execute(this.db);
+        return result.rows;
+    }
 
-    async findOne(id: string): Promise<Post> {
+    async findOne(id: number, userId?: number): Promise<Post> {
         const result = await sql<Post>`
-      SELECT * FROM post WHERE id = ${id}
-    `.execute(this.db);
+            SELECT 
+                p.*,
+                u.username,
+                u.full_name,
+                u.profile_pic_id,
+                (SELECT json_agg(json_build_object('id', id, 'url', url)) FROM image WHERE post_id = p.id) as images,
+                (SELECT id FROM image WHERE post_id = p.id LIMIT 1) as image_id,
+                (SELECT COUNT(*)::int FROM likes_post WHERE post_id = p.id) as likes_count,
+                (SELECT COUNT(*)::int FROM comment WHERE post_id = p.id) as comments_count,
+                (SELECT COUNT(*)::int FROM shares WHERE post_id = p.id) as shares_count,
+                COALESCE((SELECT json_agg(json_build_object('id', tu.id, 'username', tu.username, 'full_name', tu.full_name)) FROM tags_post tp JOIN users tu ON tp.user_id = tu.id WHERE tp.post_id = p.id), '[]'::json) as tags,
+                op.body as original_post_body,
+                op.created_at as original_post_created_at,
+                ou.id as original_author_id,
+                ou.username as original_author_username,
+                ou.full_name as original_author_full_name,
+                ou.profile_pic_id as original_author_pfp_id,
+                g.title as group_name,
+                g.cover_img_id as group_cover_id,
+                EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me
+            FROM post p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN post op ON p.original_post_id = op.id
+            LEFT JOIN users ou ON op.user_id = ou.id
+            LEFT JOIN groups g ON p.group_id = g.id
+            WHERE p.id = ${id}
+        `.execute(this.db);
 
         if (result.rows.length === 0) {
             throw new NotFoundException(`Post with ID ${id} not found`);
@@ -107,7 +261,7 @@ export class PostService {
         return result.rows[0];
     }
 
-    async update(id: string, updatePostDto: UpdatePostDto): Promise<Post> {
+    async update(id: number, updatePostDto: UpdatePostDto): Promise<Post> {
         // Note: Kysely sql template literals are great for raw SQL, 
         // but for dynamic updates we might want to use the Kysely builder if it was more integrated.
         // However, staying consistent with the existing UserService pattern:
@@ -137,14 +291,12 @@ export class PostService {
         return result.rows[0];
     }
 
-    async remove(id: string): Promise<{ deleted: boolean }> {
-        const result = await sql`
-      DELETE FROM post WHERE id = ${id}
+    async remove(id: number): Promise<{ deleted: boolean }> {
+        const post = await this.findOne(id);
+        
+        await sql`
+      CALL delete_post(${post.user_id}, ${id})
     `.execute(this.db);
-
-        if (result.numAffectedRows === undefined || result.numAffectedRows === BigInt(0)) {
-            throw new NotFoundException(`Post with ID ${id} not found`);
-        }
 
         return { deleted: true };
     }
@@ -167,17 +319,33 @@ export class PostService {
             throw new BadRequestException('Failed to create comment');
         }
 
-        return result.rows[0];
+        const comment = result.rows[0];
+
+        // Notify post owner
+        const post = await this.findOne(createCommentDto.post_id);
+        if (post && post.user_id !== createCommentDto.user_id) {
+            const notif = await this.notificationService.create({
+                user_id: post.user_id,
+                message: 'commented on your post.',
+                type: 'comment',
+                ref_id: post.id,
+                ref_type: 'post',
+                actor_id: createCommentDto.user_id
+            });
+            this.notificationGateway.sendNotificationToUser(post.user_id, notif);
+        }
+
+        return comment;
     }
 
-    async findCommentsByPost(postId: string): Promise<Comment[]> {
+    async findCommentsByPost(postId: number): Promise<Comment[]> {
         const result = await sql<Comment>`
       SELECT * FROM comment WHERE post_id = ${postId} ORDER BY created_at ASC
     `.execute(this.db);
         return result.rows;
     }
 
-    async updateComment(id: string, updateCommentDto: UpdateCommentDto): Promise<Comment> {
+    async updateComment(id: number, updateCommentDto: UpdateCommentDto): Promise<Comment> {
         const result = await sql<Comment>`
       UPDATE comment 
       SET comment = ${updateCommentDto.comment}, updated_at = CURRENT_TIMESTAMP
@@ -192,7 +360,7 @@ export class PostService {
         return result.rows[0];
     }
 
-    async removeComment(id: string): Promise<{ deleted: boolean }> {
+    async removeComment(id: number): Promise<{ deleted: boolean }> {
         const result = await sql`
       DELETE FROM comment WHERE id = ${id}
     `.execute(this.db);
@@ -206,7 +374,7 @@ export class PostService {
 
     // === LIKE METHODS ===
 
-    async likePost(userId: string, postId: string): Promise<LikesPost> {
+    async likePost(userId: number, postId: number): Promise<LikesPost> {
         const result = await sql<LikesPost>`
       INSERT INTO likes_post (user_id, post_id)
       VALUES (${userId}, ${postId})
@@ -222,10 +390,24 @@ export class PostService {
             return existing.rows[0];
         }
 
+        // Notify post owner
+        const post = await this.findOne(postId);
+        if (post && post.user_id !== userId) {
+            const notif = await this.notificationService.create({
+                user_id: post.user_id,
+                message: 'liked your post.',
+                type: 'like',
+                ref_id: post.id,
+                ref_type: 'post',
+                actor_id: userId
+            });
+            this.notificationGateway.sendNotificationToUser(post.user_id, notif);
+        }
+
         return result.rows[0];
     }
 
-    async unlikePost(userId: string, postId: string): Promise<{ unliked: boolean }> {
+    async unlikePost(userId: number, postId: number): Promise<{ unliked: boolean }> {
         const result = await sql`
       DELETE FROM likes_post WHERE user_id = ${userId} AND post_id = ${postId}
     `.execute(this.db);
@@ -235,19 +417,36 @@ export class PostService {
 
     // === SHARE METHODS ===
 
-    async sharePost(userId: string, postId: string): Promise<Shares> {
-        const result = await sql<Shares>`
-      INSERT INTO shares (user_id, post_id)
-      VALUES (${userId}, ${postId})
-      ON CONFLICT (user_id, post_id) DO NOTHING
-      RETURNING *
+    async sharePost(userId: number, postId: number, bodyText: string = ''): Promise<Shares> {
+        await sql`
+      CALL share_post(${userId}, ${postId})
     `.execute(this.db);
 
-        if (result.rows.length === 0) {
-            const existing = await sql<Shares>`
-        SELECT * FROM shares WHERE user_id = ${userId} AND post_id = ${postId}
-      `.execute(this.db);
-            return existing.rows[0];
+        // Additionally create a post record to show on timeline with the body text
+        await this.create({
+            user_id: userId,
+            original_post_id: postId,
+            type: 'share',
+            body: bodyText,
+            visibility: 'public'
+        });
+
+        const result = await sql<Shares>`
+            SELECT * FROM shares WHERE user_id = ${userId} AND post_id = ${postId}
+        `.execute(this.db);
+
+        // Notify post owner
+        const post = await this.findOne(postId);
+        if (post && post.user_id !== userId) {
+            const notif = await this.notificationService.create({
+                user_id: post.user_id,
+                message: 'shared your post.',
+                type: 'post_share',
+                ref_id: post.id,
+                ref_type: 'post',
+                actor_id: userId
+            });
+            this.notificationGateway.sendNotificationToUser(post.user_id, notif);
         }
 
         return result.rows[0];

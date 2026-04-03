@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsEmail, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../userRolesEnum';
 
@@ -15,6 +16,7 @@ export class FindQueryDto {
 
   @ApiPropertyOptional({ description: 'Filter by user ID (Integer)' })
   @IsOptional()
+  @Type(() => Number)
   id?: number;
 
   @ApiPropertyOptional({ description: 'Filter by username' })

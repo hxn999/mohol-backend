@@ -9,7 +9,11 @@ import {
   Query,
   Req,
   UseGuards,
+  ParseIntPipe,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UserService } from './user.service';
 import { FindQueryDto } from './dto/findQueryDto';
 import { UpdateUserDto } from './dto/updateUserDto';
@@ -18,6 +22,7 @@ import { RequestWithAuth } from 'src/auth/auth.controller';
 import { CreateUserDto } from './dto/createUserDto';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -76,7 +81,35 @@ export class UserController {
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized', type: ApiErrorDto })
   @ApiResponse({ status: 404, description: 'User not found', type: ApiErrorDto })
-  async delete(@Param('id') id: number) {
+  async delete(@Param('id', ParseIntPipe) id: number) {
     return this.userService.deleteOne(id);
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard)
+  @Post('profile-picture')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload / replace profile picture' })
+  @ApiResponse({ status: 200, description: 'Profile picture updated', type: UserResponseDto })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 8 * 1024 * 1024 } }))
+  async uploadProfilePicture(
+    @Req() req: RequestWithAuth,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.userService.uploadProfilePicture(Number(req.user.id), file);
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(AuthGuard)
+  @Post('cover-picture')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload / replace cover picture' })
+  @ApiResponse({ status: 200, description: 'Cover picture updated', type: UserResponseDto })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 8 * 1024 * 1024 } }))
+  async uploadCoverPicture(
+    @Req() req: RequestWithAuth,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.userService.uploadCoverPicture(Number(req.user.id), file);
   }
 }

@@ -44,10 +44,8 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 400, description: 'Invalid credentials or missing identifier' })
   async login(@Res() res: Response, @Body() credentials: SigninDto) {
-    const identifier = credentials.email || credentials.username;
-    if (!identifier) {
-      throw new BadRequestException('Either email or username must be provided');
-    }
+    const identifier = credentials.email;
+    
     return this.authService.login(identifier, credentials.password, res);
   }
 

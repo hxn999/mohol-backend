@@ -14,11 +14,11 @@ export class UserResponseDto {
   @ApiProperty({ example: 'john@example.com' })
   email: string;
 
-  @ApiPropertyOptional({ example: '1' })
-  profile_pic_id?: string | null;
+  @ApiPropertyOptional({ example: 1 })
+  profile_pic_id?: number | null;
 
-  @ApiPropertyOptional({ example: '2' })
-  cover_pic_id?: string | null;
+  @ApiPropertyOptional({ example: 2 })
+  cover_pic_id?: number | null;
 
   @ApiPropertyOptional({ example: 'I am a web developer' })
   bio?: string | null;

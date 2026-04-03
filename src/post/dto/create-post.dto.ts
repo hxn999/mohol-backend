@@ -1,6 +1,7 @@
-import { IsString, IsNotEmpty, IsOptional, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsEnum } from 'class-validator';
 import { PostType, PostVisibility, PostStatus } from 'src/database/database.types';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreatePostDto {
   @ApiProperty({ required: false })
@@ -9,19 +10,22 @@ export class CreatePostDto {
   body?: string;
 
   @ApiProperty()
-  @IsUUID()
+  @IsInt()
+  @Type(() => Number)
   @IsNotEmpty()
-  user_id: string;
+  user_id: number;
 
   @ApiProperty({ required: false })
-  @IsUUID()
+  @IsInt()
+  @Type(() => Number)
   @IsOptional()
-  group_id?: string;
+  group_id?: number;
 
   @ApiProperty({ required: false })
-  @IsUUID()
+  @IsInt()
+  @Type(() => Number)
   @IsOptional()
-  original_post_id?: string;
+  original_post_id?: number;
 
   @ApiProperty({ enum: ['text', 'image', 'video', 'share'], default: 'text' })
   @IsEnum(['text', 'image', 'video', 'share'])
@@ -37,4 +41,8 @@ export class CreatePostDto {
   @IsEnum(['active', 'archived', 'deleted', 'pending'])
   @IsOptional()
   status?: PostStatus;
+
+  @ApiProperty({ required: false, type: [Number] })
+  @IsOptional()
+  tags?: number[];
 }

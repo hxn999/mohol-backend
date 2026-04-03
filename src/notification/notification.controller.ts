@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -16,19 +16,19 @@ export class NotificationController {
 
     @Get('user/:userId')
     @ApiOperation({ summary: 'Get all notifications for a user' })
-    findAllByUser(@Param('userId', ParseUUIDPipe) userId: string) {
+    findAllByUser(@Param('userId', ParseIntPipe) userId: number) {
         return this.notificationService.findAllByUser(userId);
     }
 
     @Patch(':id/read')
     @ApiOperation({ summary: 'Mark a notification as read' })
-    markAsRead(@Param('id', ParseUUIDPipe) id: string) {
+    markAsRead(@Param('id', ParseIntPipe) id: number) {
         return this.notificationService.markAsRead(id);
     }
 
     @Delete(':id')
     @ApiOperation({ summary: 'Delete a notification' })
-    remove(@Param('id', ParseUUIDPipe) id: string) {
+    remove(@Param('id', ParseIntPipe) id: number) {
         return this.notificationService.remove(id);
     }
 }

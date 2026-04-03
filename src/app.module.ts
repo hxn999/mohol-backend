@@ -19,6 +19,8 @@ import { GroupModule } from './group/group.module';
 import { MediaModule } from './media/media.module';
 import { RelationshipModule } from './relationship/relationship.module';
 import { NotificationModule } from './notification/notification.module';
+import { SearchModule } from './search/search.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { NotificationModule } from './notification/notification.module';
     MediaModule,
     RelationshipModule,
     NotificationModule,
+    SearchModule,
+    AnalyticsModule,
 
     CaslModule,
     HttpModule,

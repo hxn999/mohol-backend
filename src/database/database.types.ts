@@ -61,6 +61,7 @@ export interface NotificationTable {
   ref_id: number | null;
   ref_type: NotificationRefType | null;
   is_read: Generated<boolean>;
+  actor_id: number | null;
   created_at: Generated<Date>;
 }
 

@@ -118,8 +118,10 @@ export class GroupService {
 
     async addMember(groupId: number, addMemberDto: AddMemberDto): Promise<Membership> {
         await sql`
-      CALL join_group(${addMemberDto.user_id}, ${groupId})
-    `.execute(this.db);
+            INSERT INTO membership (user_id, group_id, role)
+            VALUES (${addMemberDto.user_id}, ${groupId}, 'member')
+            ON CONFLICT (user_id, group_id) DO NOTHING
+        `.execute(this.db);
 
         const result = await sql<Membership>`
             SELECT * FROM membership WHERE group_id = ${groupId} AND user_id = ${addMemberDto.user_id}

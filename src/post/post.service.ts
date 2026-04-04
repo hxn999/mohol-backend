@@ -25,15 +25,19 @@ export class PostService {
     ) { }
 
     async create(createPostDto: CreatePostDto): Promise<Post> {
-        await sql<Post>`
-      CALL create_post(
-        ${createPostDto.user_id},
-        ${createPostDto.body || null},
-        ${createPostDto.group_id || null},
-        ${createPostDto.type || 'text'},
-        ${createPostDto.visibility || 'public'}
-      )
-    `.execute(this.db);
+        const result = await sql<Post>`
+            INSERT INTO post (user_id, body, group_id, type, visibility)
+            VALUES (
+                ${createPostDto.user_id},
+                ${createPostDto.body || null},
+                ${createPostDto.group_id || null},
+                ${createPostDto.type || 'text'},
+                ${createPostDto.visibility || 'public'}
+            )
+            RETURNING *
+        `.execute(this.db);
+
+        const createdPost = result.rows[0];
 
         // For procedures, we might not get RETURNING * directly depending on how they are written.
         // But the user asked to "directly implement" using these procedures.
@@ -41,13 +45,14 @@ export class PostService {
         // We'll try to find the post if it was created, or just return a dummy if it's just a seed call.
         // However, the original code returned the post.
         
-        const lastPostResult = await sql<Post>`
-            SELECT * FROM post 
-            WHERE user_id = ${createPostDto.user_id} 
-            ORDER BY created_at DESC LIMIT 1
-        `.execute(this.db);
+        // Logic for fetching last post is no longer needed since we use RETURNING *
+        // const lastPostResult = await sql<Post>`
+        //     SELECT * FROM post 
+        //     WHERE user_id = ${createPostDto.user_id} 
+        //     ORDER BY created_at DESC LIMIT 1
+        // `.execute(this.db);
 
-        const createdPost = lastPostResult.rows[0];
+        // const createdPost = lastPostResult.rows[0];
 
         if (createdPost && createPostDto.tags && createPostDto.tags.length > 0) {
             for (const tagUserId of createPostDto.tags) {
@@ -306,8 +311,8 @@ export class PostService {
         const post = await this.findOne(id);
         
         await sql`
-      CALL delete_post(${post.user_id}, ${id})
-    `.execute(this.db);
+            DELETE FROM post WHERE id = ${id}
+        `.execute(this.db);
 
         return { deleted: true };
     }
@@ -434,8 +439,10 @@ export class PostService {
 
     async sharePost(userId: number, postId: number, bodyText: string = ''): Promise<Shares> {
         await sql`
-      CALL share_post(${userId}, ${postId})
-    `.execute(this.db);
+            INSERT INTO shares (user_id, post_id)
+            VALUES (${userId}, ${postId})
+            ON CONFLICT (user_id, post_id) DO NOTHING
+        `.execute(this.db);
 
         // Additionally create a post record to show on timeline with the body text
         await this.create({

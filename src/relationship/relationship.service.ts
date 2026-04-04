@@ -20,9 +20,26 @@ export class RelationshipService {
             throw new BadRequestException('You cannot block yourself');
         }
 
+        // 1. Insert into block table
         await sql`
-      CALL block_user(${blockerId}, ${blockedId})
-    `.execute(this.db);
+            INSERT INTO block (blocker_id, blocked_id)
+            VALUES (${blockerId}, ${blockedId})
+            ON CONFLICT (blocker_id, blocked_id) DO NOTHING
+        `.execute(this.db);
+
+        // 2. Remove any existing friendship
+        await sql`
+            DELETE FROM friend 
+            WHERE (user_id = ${blockerId} AND friend_id = ${blockedId}) 
+               OR (user_id = ${blockedId} AND friend_id = ${blockerId})
+        `.execute(this.db);
+
+        // 3. Remove any existing follows (bidirectional)
+        await sql`
+            DELETE FROM follow 
+            WHERE (follower_id = ${blockerId} AND following_id = ${blockedId}) 
+               OR (follower_id = ${blockedId} AND following_id = ${blockerId})
+        `.execute(this.db);
 
         const result = await sql<Block>`
             SELECT * FROM block WHERE blocker_id = ${blockerId} AND blocked_id = ${blockedId}
@@ -89,8 +106,10 @@ export class RelationshipService {
         }
 
         await sql`
-      CALL send_friend_request(${userId}, ${friendId})
-    `.execute(this.db);
+            INSERT INTO friend (user_id, friend_id, status)
+            VALUES (${userId}, ${friendId}, 'pending')
+            ON CONFLICT (user_id, friend_id) DO NOTHING
+        `.execute(this.db);
 
         const result = await sql<Friend>`
             SELECT * FROM friend WHERE user_id = ${userId} AND friend_id = ${friendId}

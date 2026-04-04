@@ -72,6 +72,7 @@ CREATE TABLE notification (
     ref_id INT,
     ref_type notification_ref_type,
     is_read BOOLEAN DEFAULT FALSE,
+    actor_id INT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -273,7 +274,8 @@ ALTER TABLE groups
     ADD CONSTRAINT fk_group_cover_img FOREIGN KEY (cover_img_id) REFERENCES image(id) ON DELETE SET NULL;
 
 ALTER TABLE notification
-    ADD CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    ADD CONSTRAINT fk_notification_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE post
     ADD CONSTRAINT fk_post_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

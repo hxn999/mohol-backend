@@ -89,6 +89,22 @@ export class RelationshipController {
         return this.relationshipService.getPendingRequests(userId);
     }
 
+    @Get('blocked/:userId')
+    @ApiOperation({ summary: 'Get all blocked user IDs for a user' })
+    getBlockedUsers(@Param('userId', ParseIntPipe) userId: number) {
+        return this.relationshipService.getBlockedUserIds(userId);
+    }
+
+    @Get('is-blocked/:user1Id/:user2Id')
+    @ApiOperation({ summary: 'Check if a block exists between two users' })
+    async isBlocked(
+        @Param('user1Id', ParseIntPipe) user1Id: number,
+        @Param('user2Id', ParseIntPipe) user2Id: number
+    ) {
+        const blocked = await this.relationshipService.isBlocked(user1Id, user2Id);
+        return { is_blocked: blocked };
+    }
+
     @Get('status/:user1Id/:user2Id')
     @ApiOperation({ summary: 'Get relationship status between two users' })
     getStatus(

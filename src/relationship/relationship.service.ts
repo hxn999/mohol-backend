@@ -172,7 +172,25 @@ export class RelationshipService {
         return result.rows;
     }
 
-    async getStatus(user1Id: number, user2Id: number): Promise<{ friend_status: string | null; is_following: boolean; is_blocked: boolean; action_required_by: number | null }> {
+    async getBlockedUserIds(userId: number): Promise<number[]> {
+        const result = await sql<{ uid: number }>`
+            SELECT blocker_id AS uid FROM block WHERE blocked_id = ${userId}
+            UNION
+            SELECT blocked_id AS uid FROM block WHERE blocker_id = ${userId}
+        `.execute(this.db);
+        return result.rows.map(r => r.uid);
+    }
+
+    async isBlocked(user1Id: number, user2Id: number): Promise<boolean> {
+        const result = await sql`
+            SELECT 1 FROM block
+            WHERE (blocker_id = ${user1Id} AND blocked_id = ${user2Id})
+               OR (blocker_id = ${user2Id} AND blocked_id = ${user1Id})
+        `.execute(this.db);
+        return result.rows.length > 0;
+    }
+
+    async getStatus(user1Id: number, user2Id: number): Promise<{ friend_status: string | null; is_following: boolean; is_blocked: boolean; is_blocked_by_me: boolean; action_required_by: number | null }> {
         // Friend status
         const friendQuery = await sql`
             SELECT status, user_id, friend_id FROM friend 
@@ -191,11 +209,12 @@ export class RelationshipService {
         const is_following = followQuery.rows.length > 0;
 
         // Block status (is user1 blocked by user2 OR user1 blocked user2)
-        const blockQuery = await sql`
-            SELECT 1 FROM block WHERE (blocker_id = ${user1Id} AND blocked_id = ${user2Id}) OR (blocker_id = ${user2Id} AND blocked_id = ${user1Id})
+        const blockQuery = await sql<{ blocker_id: number }>`
+            SELECT blocker_id FROM block WHERE (blocker_id = ${user1Id} AND blocked_id = ${user2Id}) OR (blocker_id = ${user2Id} AND blocked_id = ${user1Id})
         `.execute(this.db);
         const is_blocked = blockQuery.rows.length > 0;
+        const is_blocked_by_me = blockQuery.rows.length > 0 && blockQuery.rows[0].blocker_id === user1Id;
 
-        return { friend_status, is_following, is_blocked, action_required_by };
+        return { friend_status, is_following, is_blocked, is_blocked_by_me, action_required_by };
     }
 }

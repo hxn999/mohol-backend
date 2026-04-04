@@ -12,6 +12,7 @@ import {
   ParseIntPipe,
   UploadedFile,
   UseInterceptors,
+  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserService } from './user.service';
@@ -30,11 +31,15 @@ import {
 } from '@nestjs/swagger';
 import { UserResponseDto } from './dto/userResponseDto';
 import { ApiErrorDto } from './dto/apiErrorDto';
+import { RelationshipService } from 'src/relationship/relationship.service';
 
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(private userService: UserService) {}
+  constructor(
+    private userService: UserService,
+    private relationshipService: RelationshipService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
@@ -57,8 +62,15 @@ export class UserController {
   @ApiParam({ name: 'id', description: 'User ID (Integer), Email, or Username', example: '1' })
   @ApiResponse({ status: 200, description: 'User found', type: UserResponseDto })
   @ApiResponse({ status: 404, description: 'User not found', type: ApiErrorDto })
-  async findOne(@Param('id') id: string) {
-    // We pass it as string to service because findOne handles both ID (number) and email/username (string)
+  async findOne(@Param('id') id: string, @Query('requesterId') requesterId?: string) {
+    if (requesterId) {
+      const targetUser = await this.userService.findOne(id);
+      const blocked = await this.relationshipService.isBlocked(Number(requesterId), targetUser.id);
+      if (blocked) {
+        throw new NotFoundException('This profile is not available.');
+      }
+      return targetUser;
+    }
     return this.userService.findOne(id);
   }
 

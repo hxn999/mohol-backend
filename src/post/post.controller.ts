@@ -97,8 +97,8 @@ export class PostController {
 
     @Get(':id/comments')
     @ApiOperation({ summary: 'Get all comments for a post' })
-    findCommentsByPost(@Param('id', ParseIntPipe) id: number) {
-        return this.postService.findCommentsByPost(id);
+    findCommentsByPost(@Param('id', ParseIntPipe) id: number, @Query('userId') userId?: string) {
+        return this.postService.findCommentsByPost(id, userId ? Number(userId) : undefined);
     }
 
     @Patch('comments/:commentId')
@@ -117,6 +117,13 @@ export class PostController {
     }
 
     // === LIKES ===
+
+    @Get(':id/likers')
+    @ApiOperation({ summary: 'Get list of users who liked a post' })
+    @ApiParam({ name: 'id', description: 'Post ID' })
+    getPostLikers(@Param('id', ParseIntPipe) id: number) {
+        return this.postService.getPostLikers(id);
+    }
 
     @Post(':id/like/:userId')
     @ApiOperation({ summary: 'Like a post' })

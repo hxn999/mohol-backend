@@ -4,9 +4,10 @@ import { PostController } from './post.controller';
 import { DatabaseModule } from 'src/database/database.module';
 import { MediaModule } from 'src/media/media.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { RelationshipModule } from 'src/relationship/relationship.module';
 
 @Module({
-    imports: [DatabaseModule, MediaModule, NotificationModule],
+    imports: [DatabaseModule, MediaModule, NotificationModule, RelationshipModule],
     controllers: [PostController],
     providers: [PostService],
     exports: [PostService],

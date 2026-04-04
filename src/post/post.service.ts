@@ -11,6 +11,7 @@ import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { MediaService } from 'src/media/media.service';
 import { NotificationService } from 'src/notification/notification.service';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { RelationshipService } from 'src/relationship/relationship.service';
 
 @Injectable()
 export class PostService {
@@ -19,7 +20,8 @@ export class PostService {
         private readonly cloudinaryService: CloudinaryService,
         private readonly mediaService: MediaService,
         private readonly notificationService: NotificationService,
-        private readonly notificationGateway: NotificationGateway
+        private readonly notificationGateway: NotificationGateway,
+        private readonly relationshipService: RelationshipService
     ) { }
 
     async create(createPostDto: CreatePostDto): Promise<Post> {
@@ -81,6 +83,8 @@ export class PostService {
     }
 
     async findAll(userId?: number): Promise<Post[]> {
+        const blockedIds = userId ? await this.relationshipService.getBlockedUserIds(userId) : [];
+        const blockedList = blockedIds.length > 0 ? blockedIds : [0];
         const result = await sql<Post>`
             SELECT 
                 p.*,
@@ -107,12 +111,15 @@ export class PostService {
             LEFT JOIN post op ON p.original_post_id = op.id
             LEFT JOIN users ou ON op.user_id = ou.id
             LEFT JOIN groups g ON p.group_id = g.id
+            WHERE p.user_id != ALL(${sql`ARRAY[${sql.join(blockedList.map(id => sql`${id}`), sql`,`)}]::int[]`})
             ORDER BY p.created_at DESC
         `.execute(this.db);
         return result.rows;
     }
 
     async getRecommendations(userId: number): Promise<Post[]> {
+        const blockedIds = await this.relationshipService.getBlockedUserIds(userId);
+        const blockedList = blockedIds.length > 0 ? blockedIds : [0];
         const result = await sql<Post>`
             WITH user_friends AS (
                 SELECT 
@@ -177,6 +184,7 @@ export class PostService {
             LEFT JOIN user_interactions ui ON p.user_id = ui.interacted_user_id
             WHERE 
                 p.status = 'active'
+                AND p.user_id != ALL(${sql`ARRAY[${sql.join(blockedList.map(id => sql`${id}`), sql`,`)}]::int[]`})
                 AND (
                     p.user_id = ${userId}
                     OR p.visibility = 'public'
@@ -191,6 +199,8 @@ export class PostService {
     }
     
     async findByGroupId(groupId: number, userId?: number): Promise<Post[]> {
+        const blockedIds = userId ? await this.relationshipService.getBlockedUserIds(userId) : [];
+        const blockedList = blockedIds.length > 0 ? blockedIds : [0];
         const result = await sql<any>`
             SELECT 
                 p.*,
@@ -219,6 +229,7 @@ export class PostService {
             LEFT JOIN groups g ON p.group_id = g.id
             WHERE p.group_id = ${groupId} 
               AND p.status = 'active'
+              AND p.user_id != ALL(${sql`ARRAY[${sql.join(blockedList.map(id => sql`${id}`), sql`,`)}]::int[]`})
             ORDER BY p.created_at DESC
         `.execute(this.db);
         return result.rows;
@@ -338,9 +349,13 @@ export class PostService {
         return comment;
     }
 
-    async findCommentsByPost(postId: number): Promise<Comment[]> {
+    async findCommentsByPost(postId: number, userId?: number): Promise<Comment[]> {
+        const blockedIds = userId ? await this.relationshipService.getBlockedUserIds(userId) : [];
+        const blockedList = blockedIds.length > 0 ? blockedIds : [0];
         const result = await sql<Comment>`
-      SELECT * FROM comment WHERE post_id = ${postId} ORDER BY created_at ASC
+      SELECT * FROM comment WHERE post_id = ${postId}
+        AND user_id != ALL(${sql`ARRAY[${sql.join(blockedList.map(id => sql`${id}`), sql`,`)}]::int[]`})
+      ORDER BY created_at ASC
     `.execute(this.db);
         return result.rows;
     }
@@ -450,5 +465,18 @@ export class PostService {
         }
 
         return result.rows[0];
+    }
+
+    // === LIKERS LIST ===
+
+    async getPostLikers(postId: number): Promise<any[]> {
+        const result = await sql<any>`
+            SELECT u.id, u.username, u.full_name, u.profile_pic_id
+            FROM likes_post lp
+            JOIN users u ON lp.user_id = u.id
+            WHERE lp.post_id = ${postId}
+            ORDER BY lp.created_at DESC
+        `.execute(this.db);
+        return result.rows;
     }
 }

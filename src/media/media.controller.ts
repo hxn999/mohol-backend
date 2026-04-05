@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Body, Param, Delete, ParseIntPipe, Redirect } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, ParseIntPipe, Redirect, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 import { MediaService } from './media.service';
 import { CreateImageDto } from './dto/create-image.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -6,7 +8,29 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 @ApiTags('media')
 @Controller('media')
 export class MediaController {
-    constructor(private readonly mediaService: MediaService) { }
+    constructor(
+        private readonly mediaService: MediaService,
+        private readonly cloudinaryService: CloudinaryService
+    ) { }
+
+    @Post('upload')
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 8 * 1024 * 1024 } }))
+    @ApiOperation({ summary: 'Upload a picture and create a record' })
+    async uploadPicture(@UploadedFile() file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException('No file uploaded');
+        }
+
+        const cloudinaryEntity = await this.cloudinaryService.uploadFile(file) as any;
+        const imageUrl = cloudinaryEntity.url || cloudinaryEntity.secure_url;
+
+        const imgRecord = await this.mediaService.create({
+            url: imageUrl,
+            type: 'group_cover',
+        });
+
+        return { id: imgRecord.id, url: imgRecord.url };
+    }
 
     @Post('images')
     @ApiOperation({ summary: 'Create a new image record' })

@@ -24,13 +24,13 @@ export class SearchService {
         // Suggestions typically return names/titles for autocomplete
         const [users, groups] = await Promise.all([
             sql<any>`
-                SELECT id, username, full_name, 'user' as type
+                SELECT id, username, full_name, profile_pic_id, 'user' as type
                 FROM users 
                 WHERE username ILIKE ${q} OR full_name ILIKE ${q}
                 LIMIT 5
             `.execute(this.db),
             sql<any>`
-                SELECT id, title, 'group' as type
+                SELECT id, title, cover_img_id, 'group' as type
                 FROM groups 
                 WHERE title ILIKE ${q}
                 LIMIT 5

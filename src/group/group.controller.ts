@@ -16,6 +16,12 @@ export class GroupController {
         return this.groupService.findUserGroups(userId);
     }
 
+    @Get('suggested/:userId')
+    @ApiOperation({ summary: 'Get suggested groups for a user' })
+    getSuggestedGroups(@Param('userId', ParseIntPipe) userId: number) {
+        return this.groupService.getSuggestedGroups(userId);
+    }
+
     @Post()
     @ApiOperation({ summary: 'Create a new group' })
     create(@Body() createGroupDto: CreateGroupDto & { creator_id: number }) {

@@ -142,17 +142,47 @@ export class RelationshipService {
                 WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
                    OR (user_id = ${friendId} AND friend_id = ${userId})
             `.execute(this.db);
-            return null as any; 
         }
 
         const result = await sql<Friend>`
-            SELECT * FROM friend 
-            WHERE (user_id = ${userId} AND friend_id = ${friendId}) 
-               OR (user_id = ${friendId} AND friend_id = ${userId})
+            SELECT * FROM friend WHERE (user_id = ${userId} AND friend_id = ${friendId}) OR (user_id = ${friendId} AND friend_id = ${userId})
         `.execute(this.db);
 
         return result.rows[0];
     }
+
+    async getSuggestedFriends(userId: number) {
+        const blockedIds = await this.getBlockedUserIds(userId);
+        const exclusions = [...blockedIds, userId];
+        const result = await sql<any>`
+            SELECT u.id, u.username, u.full_name, u.profile_pic_id
+            FROM users u
+            WHERE u.id != ALL(${sql`ARRAY[${sql.join(exclusions.map(id => sql`${id}`), sql`,`)}]::int[]`})
+              AND NOT EXISTS (
+                  SELECT 1 FROM friend f 
+                  WHERE (f.user_id = ${userId} AND f.friend_id = u.id) 
+                     OR (f.user_id = u.id AND f.friend_id = ${userId})
+              )
+            ORDER BY RANDOM()
+            LIMIT 5
+        `.execute(this.db);
+        return result.rows;
+    }
+
+    async getMostInteractedFriends(userId: number) {
+        const result = await sql<any>`
+            SELECT u.id, u.username, u.full_name, u.profile_pic_id
+            FROM friend f
+            JOIN users u ON (f.user_id = u.id OR f.friend_id = u.id)
+            WHERE (f.user_id = ${userId} OR f.friend_id = ${userId})
+              AND u.id != ${userId}
+              AND f.status = 'accepted'
+            ORDER BY f.updated_at DESC
+            LIMIT 5
+        `.execute(this.db);
+        return result.rows;
+    }
+
 
     async removeFriend(userId: number, friendId: number): Promise<{ removed: boolean }> {
         const result = await sql`
@@ -198,6 +228,19 @@ export class RelationshipService {
             SELECT blocked_id AS uid FROM block WHERE blocker_id = ${userId}
         `.execute(this.db);
         return result.rows.map(r => r.uid);
+    }
+
+    async getBlockedUsersDetails(userId: number): Promise<any[]> {
+        const result = await sql<any>`
+            SELECT 
+                u.id, u.username, u.full_name, u.profile_pic_id,
+                b.created_at
+            FROM block b
+            JOIN users u ON b.blocked_id = u.id
+            WHERE b.blocker_id = ${userId}
+            ORDER BY b.created_at DESC
+        `.execute(this.db);
+        return result.rows;
     }
 
     async isBlocked(user1Id: number, user2Id: number): Promise<boolean> {

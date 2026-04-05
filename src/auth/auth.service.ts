@@ -102,8 +102,10 @@ export class AuthService {
 
       return res.status(200).json({
         user: {
+          id: foundUser.id,
           name: foundUser.full_name,
           username: foundUser.username,
+          profile_pic_id: foundUser.profile_pic_id,
         },
       });
     } catch (error) {
@@ -199,8 +201,10 @@ export class AuthService {
 
       return res.status(200).json({
         user: {
+          id: createdUser.id,
           name: createdUser.full_name,
           username: createdUser.username,
+          profile_pic_id: createdUser.profile_pic_id,
         },
       });
     } catch (error) {
@@ -346,8 +350,10 @@ export class AuthService {
 
     return res.status(200).json({
       user: {
+        id: foundUser.id,
         name: foundUser.full_name,
         username: foundUser.username,
+        profile_pic_id: foundUser.profile_pic_id,
       },
     });
   }
@@ -553,8 +559,11 @@ export class AuthService {
       email: user.email,
       bio: user.bio,
       role: user.role,
-      profile_pic_id: user.profile_pic_id,
-      cover_pic_id: user.cover_pic_id,
+      profile_pic_id: (user as any).profile_pic_id,
+      cover_pic_id: (user as any).cover_pic_id,
+      followers_count: (user as any).followers_count,
+      following_count: (user as any).following_count,
+      posts_count: (user as any).posts_count,
       created_at: user.created_at,
     };
   }

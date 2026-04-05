@@ -63,8 +63,15 @@ export class UserService {
   }
 
   async findOne(id: number | string): Promise<User> {
-    const result = await sql<User>`
-      SELECT * FROM users WHERE id = ${id} 
+    const result = await sql<any>`
+      SELECT 
+        u.*,
+        (SELECT COUNT(*)::int FROM friend WHERE status = 'accepted' AND (user_id = u.id OR friend_id = u.id)) as friends_count,
+        (SELECT COUNT(*)::int FROM follow WHERE following_id = u.id) as followers_count,
+        (SELECT COUNT(*)::int FROM follow WHERE follower_id = u.id) as following_count,
+        (SELECT COUNT(*)::int FROM post WHERE user_id = u.id) as posts_count
+      FROM users u 
+      WHERE u.id = ${id} 
     `.execute(this.db);
 
     if (result.rows.length === 0) {
@@ -87,25 +94,36 @@ export class UserService {
     return result.rows[0];
   }
 
-  async findAll(query?: FindQueryDto): Promise<User[]> {
-    let sqlQuery = sql<User>`SELECT * FROM users WHERE 1=1`;
+  async findAll(query?: FindQueryDto, blockedIds: number[] = []): Promise<User[]> {
+    let sqlQuery = sql<any>`
+      SELECT 
+        u.*,
+        (SELECT COUNT(*)::int FROM friend WHERE status = 'accepted' AND (user_id = u.id OR friend_id = u.id)) as friends_count,
+        (SELECT COUNT(*)::int FROM follow WHERE following_id = u.id) as followers_count,
+        (SELECT COUNT(*)::int FROM follow WHERE follower_id = u.id) as following_count,
+        (SELECT COUNT(*)::int FROM post WHERE user_id = u.id) as posts_count
+      FROM users u WHERE 1=1`;
 
     if (query) {
       if (query.name) {
-        sqlQuery = sql<User>`${sqlQuery} AND full_name ILIKE ${'%' + query.name + '%'}`;
+        sqlQuery = sql<any>`${sqlQuery} AND u.full_name ILIKE ${'%' + query.name + '%'}`;
       }
       if (query.email) {
-        sqlQuery = sql<User>`${sqlQuery} AND email = ${query.email}`;
+        sqlQuery = sql<any>`${sqlQuery} AND u.email = ${query.email}`;
       }
       if (query.username) {
-        sqlQuery = sql<User>`${sqlQuery} AND username = ${query.username}`;
+        sqlQuery = sql<any>`${sqlQuery} AND u.username = ${query.username}`;
       }
       if (query.id) {
-        sqlQuery = sql<User>`${sqlQuery} AND id = ${query.id}`;
+        sqlQuery = sql<any>`${sqlQuery} AND u.id = ${query.id}`;
       }
       if (query.role) {
-        sqlQuery = sql<User>`${sqlQuery} AND role = ${query.role}`;
+        sqlQuery = sql<any>`${sqlQuery} AND u.role = ${query.role}`;
       }
+    }
+
+    if (blockedIds.length > 0) {
+      sqlQuery = sql<any>`${sqlQuery} AND u.id != ALL(${sql`ARRAY[${sql.join(blockedIds.map(id => sql`${id}`), sql`,`)}]::int[]`})`;
     }
 
     const result = await sql<User>`${sqlQuery} ORDER BY created_at DESC`.execute(this.db);

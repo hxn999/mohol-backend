@@ -210,4 +210,20 @@ export class GroupService {
     `.execute(this.db);
         return result.rows;
     }
+
+    async getSuggestedGroups(userId: number): Promise<Group[]> {
+        const result = await sql<Group>`
+            SELECT g.*, 
+                   (SELECT COUNT(*) FROM membership m2 WHERE m2.group_id = g.id) as member_count
+            FROM groups g
+            WHERE g.visibility = 'public'
+              AND NOT EXISTS (
+                  SELECT 1 FROM membership m 
+                  WHERE m.group_id = g.id AND m.user_id = ${userId}
+              )
+            ORDER BY RANDOM()
+            LIMIT 5
+        `.execute(this.db);
+        return result.rows;
+    }
 }

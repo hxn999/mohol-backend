@@ -58,6 +58,18 @@ export class RelationshipController {
         return this.relationshipService.sendFriendRequest(userId, friendId);
     }
 
+    @Get('suggested-friends/:userId')
+    @ApiOperation({ summary: 'Get suggested friends for a user' })
+    getSuggestedFriends(@Param('userId', ParseIntPipe) userId: number) {
+        return this.relationshipService.getSuggestedFriends(userId);
+    }
+
+    @Get('most-interacted/:userId')
+    @ApiOperation({ summary: 'Get most interacted friends' })
+    getMostInteractedFriends(@Param('userId', ParseIntPipe) userId: number) {
+        return this.relationshipService.getMostInteractedFriends(userId);
+    }
+
     @Patch('friends/:userId/:friendId/status')
     @ApiOperation({ summary: 'Update friend request status' })
     updateFriendStatus(
@@ -93,6 +105,12 @@ export class RelationshipController {
     @ApiOperation({ summary: 'Get all blocked user IDs for a user' })
     getBlockedUsers(@Param('userId', ParseIntPipe) userId: number) {
         return this.relationshipService.getBlockedUserIds(userId);
+    }
+
+    @Get('blocked/:userId/details')
+    @ApiOperation({ summary: 'Get detailed list of blocked users' })
+    getBlockedUsersDetails(@Param('userId', ParseIntPipe) userId: number) {
+        return this.relationshipService.getBlockedUsersDetails(userId);
     }
 
     @Get('is-blocked/:user1Id/:user2Id')

@@ -53,8 +53,12 @@ export class UserController {
   @Get()
   @ApiOperation({ summary: 'Find all users with optional filtering' })
   @ApiResponse({ status: 200, description: 'List of users', type: [UserResponseDto] })
-  async findAll(@Query() query: FindQueryDto) {
-    return this.userService.findAll(query);
+  async findAll(@Query() query: FindQueryDto, @Query('requesterId') requesterId?: string) {
+    let blockedIds: number[] = [];
+    if (requesterId) {
+      blockedIds = await this.relationshipService.getBlockedUserIds(Number(requesterId));
+    }
+    return this.userService.findAll(query, blockedIds);
   }
 
   @Get(':id')

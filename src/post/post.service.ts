@@ -26,13 +26,14 @@ export class PostService {
 
     async create(createPostDto: CreatePostDto): Promise<Post> {
         const result = await sql<Post>`
-            INSERT INTO post (user_id, body, group_id, type, visibility)
+            INSERT INTO post (user_id, body, group_id, type, visibility, original_post_id)
             VALUES (
                 ${createPostDto.user_id},
                 ${createPostDto.body || null},
                 ${createPostDto.group_id || null},
                 ${createPostDto.type || 'text'},
-                ${createPostDto.visibility || 'public'}
+                ${createPostDto.visibility || 'public'},
+                ${createPostDto.original_post_id || null}
             )
             RETURNING *
         `.execute(this.db);
@@ -108,6 +109,7 @@ export class PostService {
                 ou.username as original_author_username,
                 ou.full_name as original_author_full_name,
                 ou.profile_pic_id as original_author_pfp_id,
+                (SELECT id FROM image WHERE post_id = op.id LIMIT 1) as original_post_image_id,
                 g.title as group_name,
                 g.cover_img_id as group_cover_id,
                 EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me
@@ -167,6 +169,7 @@ export class PostService {
                 ou.username as original_author_username,
                 ou.full_name as original_author_full_name,
                 ou.profile_pic_id as original_author_pfp_id,
+                (SELECT id FROM image WHERE post_id = op.id LIMIT 1) as original_post_image_id,
                 g.title as group_name,
                 g.cover_img_id as group_cover_id,
                 EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me,
@@ -224,6 +227,7 @@ export class PostService {
                 ou.username as original_author_username,
                 ou.full_name as original_author_full_name,
                 ou.profile_pic_id as original_author_pfp_id,
+                (SELECT id FROM image WHERE post_id = op.id LIMIT 1) as original_post_image_id,
                 g.title as group_name,
                 g.cover_img_id as group_cover_id,
                 EXISTS(SELECT 1 FROM likes_post WHERE post_id = p.id AND user_id = ${userId || 0}) as is_liked_by_me
